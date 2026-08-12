@@ -136,9 +136,37 @@ data class SensorCapability(
     val kind: SensorKind,
 ) : MatterCapability
 
+data class FanCapability(
+    override val endpointId: Int,
+    override val cluster: MatterClusterCapabilities,
+    val supportsPercent: Boolean,
+) : MatterCapability
+
+data class WindowCoveringCapability(
+    override val endpointId: Int,
+    override val cluster: MatterClusterCapabilities,
+    val supportsLiftPosition: Boolean,
+) : MatterCapability
+
+data class MediaPlaybackCapability(
+    override val endpointId: Int,
+    override val cluster: MatterClusterCapabilities,
+) : MatterCapability
+
 data class RawClusterCapability(
     override val endpointId: Int,
     override val cluster: MatterClusterCapabilities,
+) : MatterCapability
+
+data class VendorClusterCapability(
+    override val endpointId: Int,
+    override val cluster: MatterClusterCapabilities,
+    val pluginId: String,
+    val displayName: String,
+    val readableAttributeIds: Set<Long>,
+    val writableAttributeIds: Set<Long>,
+    val invokableCommandIds: Set<Long>,
+    val subscribableEventIds: Set<Long>,
 ) : MatterCapability
 
 data class ColorState(
@@ -154,6 +182,42 @@ data class ThermostatState(
     val occupiedCoolingSetpointCelsius: Double?,
     val occupiedHeatingSetpointCelsius: Double?,
 )
+
+enum class CapabilityStateKind { ON_OFF, LEVEL, COLOR, LOCK, THERMOSTAT, SENSOR, FAN, WINDOW_COVERING, MEDIA_PLAYBACK }
+
+data class CapabilityStateKey(
+    val endpointId: Int,
+    val kind: CapabilityStateKind,
+    val sensorKind: SensorKind? = null,
+)
+
+sealed interface MatterCapabilityState {
+    val key: CapabilityStateKey
+
+    data class OnOff(override val key: CapabilityStateKey, val isOn: Boolean) : MatterCapabilityState
+    data class Level(override val key: CapabilityStateKey, val value: Int?) : MatterCapabilityState
+    data class Color(override val key: CapabilityStateKey, val value: ColorState) : MatterCapabilityState
+    data class Lock(override val key: CapabilityStateKey, val value: LockState) : MatterCapabilityState
+    data class Thermostat(override val key: CapabilityStateKey, val value: ThermostatState) : MatterCapabilityState
+    data class Sensor(override val key: CapabilityStateKey, val value: Double?) : MatterCapabilityState
+    data class Fan(override val key: CapabilityStateKey, val percent: Int?) : MatterCapabilityState
+    data class WindowCovering(override val key: CapabilityStateKey, val liftPercent: Double?) : MatterCapabilityState
+    data class MediaPlayback(override val key: CapabilityStateKey, val state: MediaPlaybackState) : MatterCapabilityState
+}
+
+enum class MediaPlaybackState { PLAYING, PAUSED, NOT_PLAYING, BUFFERING, UNKNOWN }
+
+enum class MediaPlaybackAction { PLAY, PAUSE, STOP, PREVIOUS, NEXT }
+
+sealed interface CapabilitySubscriptionEvent {
+    data class Updated(val state: MatterCapabilityState) : CapabilitySubscriptionEvent
+    data class Resubscribing(
+        val key: CapabilityStateKey,
+        val terminationCause: Long,
+        val retryInMillis: Long,
+    ) : CapabilitySubscriptionEvent
+    data class Unavailable(val key: CapabilityStateKey, val message: String) : CapabilitySubscriptionEvent
+}
 
 class RawAttributeValue(
     val endpointId: Int,

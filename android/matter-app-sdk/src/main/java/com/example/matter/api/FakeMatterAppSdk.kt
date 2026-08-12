@@ -47,6 +47,9 @@ class FakeMatterAppSdk(
         ),
     )
     override val devices: StateFlow<List<MatterDevice>> = mutableDevices.asStateFlow()
+    private val mutableCapabilityStates = MutableStateFlow<Map<String, Map<CapabilityStateKey, MatterCapabilityState>>>(emptyMap())
+    override val capabilityStates: StateFlow<Map<String, Map<CapabilityStateKey, MatterCapabilityState>>> =
+        mutableCapabilityStates.asStateFlow()
 
     override fun parseSetupCode(rawCode: String): SetupCode = setupCodeParser.parse(rawCode)
 
@@ -77,6 +80,12 @@ class FakeMatterAppSdk(
         )
         mutableDevices.value = mutableDevices.value + device
         emit(CommissioningEvent.Completed(device))
+    }
+
+    override suspend fun openCommissioningWindow(deviceId: String, durationSeconds: Int, enhanced: Boolean): CommissioningWindow {
+        requireDevice(deviceId)
+        require(durationSeconds in 1..900)
+        return CommissioningWindow(null, durationSeconds, enhanced)
     }
 
     override suspend fun refresh(deviceId: String): MatterDevice = requireDevice(deviceId)
@@ -113,6 +122,8 @@ class FakeMatterAppSdk(
             }
         } ?: OnOffState.Unavailable
     }
+
+    override fun observeCapabilities(deviceId: String): Flow<CapabilitySubscriptionEvent> = flowOf()
 
     override suspend fun setLevel(deviceId: String, capability: LevelCapability, level: Int) {
         requireDevice(deviceId)
@@ -157,6 +168,23 @@ class FakeMatterAppSdk(
     }
 
     override suspend fun setHeatingSetpoint(deviceId: String, capability: ThermostatCapability, celsius: Double) {
+        requireDevice(deviceId)
+    }
+
+    override suspend fun setFanPercent(deviceId: String, capability: FanCapability, percent: Int) {
+        requireDevice(deviceId)
+        require(percent in 0..100)
+    }
+
+    override suspend fun setWindowCoveringPosition(deviceId: String, capability: WindowCoveringCapability, percent: Double) {
+        requireDevice(deviceId)
+        require(percent in 0.0..100.0)
+    }
+
+    override suspend fun openWindowCovering(deviceId: String, capability: WindowCoveringCapability) { requireDevice(deviceId) }
+    override suspend fun closeWindowCovering(deviceId: String, capability: WindowCoveringCapability) { requireDevice(deviceId) }
+    override suspend fun stopWindowCovering(deviceId: String, capability: WindowCoveringCapability) { requireDevice(deviceId) }
+    override suspend fun controlMedia(deviceId: String, capability: MediaPlaybackCapability, action: MediaPlaybackAction) {
         requireDevice(deviceId)
     }
 

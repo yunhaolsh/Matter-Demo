@@ -28,6 +28,11 @@
 - 动态控制按能力对象寻址，支持一个 Node 上的多个 Endpoint；未知及厂商私有 Cluster 仅作安全提示，不会被误当成灯或插座控制
 - 已实现 Device Profile Resolver：根据 Descriptor `DeviceTypeList` 识别灯、插座、门锁、温控器、音箱、传感器、风扇、开关、窗帘、摄像头和常见家电
 - 设备默认名称、类别图标和 Endpoint 区域名称由 Profile 统一生成；多 Endpoint 同类设备自动编号，缺失类型声明时仅作保守能力命名
+- 已实现通用 Capability Subscription Manager，统一订阅 OnOff、Level、Color、DoorLock、Thermostat、传感器、Fan、Window Covering 和 Media Playback 状态
+- Device Profile、Endpoint/Cluster 能力快照和用户设备元数据会持久化；不保存 Wi-Fi、Setup Code 或 Fabric 密钥
+- 已增加 Fan、Window Covering、Media/Speaker 控制及厂商 Cluster 白名单插件机制
+- 已封装 Multi-Admin Commissioning Window，并以 Strict 为生产默认的 Device Attestation 策略
+- Release AAR、Consumer ProGuard、接入文档和 Sample App 使用说明已就绪
 - SDK 关闭、设备删除和重新发现能力时会取消对应订阅，避免重复订阅及 Operational Device Pointer 泄漏
 - Controller Runtime 由 App 进程单例持有，Activity/ViewModel 重建不会重复初始化 connectedhomeip 原生全局状态
 - 已实现 CameraX + ML Kit 实时扫码：相机权限、后摄预览、Matter QR 校验、重复识别保护、闪光灯和页面退出资源释放均已接通
@@ -45,5 +50,7 @@ export ANDROID_HOME=/home/yunhao/Android/Sdk
 ```
 
 Debug APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
+
+SDK 接入见 [docs/android-sdk-integration.md](docs/android-sdk-integration.md)。
 
 下一步继续扩展类型化状态订阅、设备类型展示名称和厂商 Cluster 插件，并接入自有云端的家庭、成员与远程控制能力。

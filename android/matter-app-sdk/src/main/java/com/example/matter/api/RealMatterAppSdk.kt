@@ -5,10 +5,12 @@ import android.content.Context
 import android.util.Log
 import chip.devicecontroller.ChipDeviceController
 import chip.devicecontroller.ChipClusters
+import chip.devicecontroller.DeviceAttestationDelegate
 import chip.devicecontroller.CommissionParameters
 import chip.devicecontroller.GetConnectedDeviceCallbackJni.GetConnectedDeviceCallback
 import chip.devicecontroller.ICDDeviceInfo
 import chip.devicecontroller.NetworkCredentials
+import chip.devicecontroller.OpenCommissioningCallback
 import chip.devicecontroller.ReportCallback
 import chip.devicecontroller.ResubscriptionAttemptCallback
 import chip.devicecontroller.SubscriptionEstablishedCallback
@@ -25,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
 import java.util.Optional
+import java.security.SecureRandom
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -43,17 +46,27 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeout
 import matter.onboardingpayload.OnboardingPayload
 import matter.onboardingpayload.OnboardingPayloadParser
+import matter.tlv.AnonymousTag
+import matter.tlv.ContextSpecificTag
+import matter.tlv.TlvWriter
 
-internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
+internal class RealMatterAppSdk(
+    context: Context,
+    private val configuration: MatterSdkConfiguration = MatterSdkConfiguration(),
+) : MatterAppSdk {
     private val applicationContext = context.applicationContext
     private val runtime = MatterControllerRuntime.create(applicationContext)
-    private val capabilityDiscovery = MatterCapabilityDiscovery(runtime.controller)
+    private val capabilityDiscovery = MatterCapabilityDiscovery(
+        runtime.controller,
+        MatterVendorClusterRegistry(configuration.vendorPlugins),
+    )
     private val rawInteraction =
         MatterRawInteraction(runtime.controller, INTERACTION_TIMEOUT_MILLIS.toInt())
     private val nodeIdStore = NodeIdStore(applicationContext)
@@ -65,6 +78,15 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     private val activeSubscriptionClosers = ConcurrentHashMap.newKeySet<() -> Unit>()
     private val deviceStateObservers = ConcurrentHashMap<String, Job>()
     private val sdkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val capabilitySubscriptionManager = MatterCapabilitySubscriptionManager { deviceId, capability, attributes, min, max ->
+        subscribeRaw(
+            deviceId = deviceId,
+            capability = capability,
+            attributeIds = attributes,
+            minIntervalSeconds = min,
+            maxIntervalSeconds = max,
+        )
+    }
 
     private val defaultRoom = MatterRoom("unassigned", "Unassigned")
     private val mutableHome = MutableStateFlow(MatterHome("local-home", "Matter Home"))
@@ -72,10 +94,27 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     private val mutableRooms = MutableStateFlow(listOf(defaultRoom))
     override val rooms: StateFlow<List<MatterRoom>> = mutableRooms.asStateFlow()
     private val mutableDevices =
-        MutableStateFlow(nodeIdStore.commissionedNodeIds().sorted().map(::restoredDevice))
+        MutableStateFlow(
+            nodeIdStore.commissionedNodeIds().sorted().map { nodeId ->
+                nodeIdStore.restoredDevice(nodeId) ?: restoredDevice(nodeId)
+            },
+        )
     override val devices: StateFlow<List<MatterDevice>> = mutableDevices.asStateFlow()
+    private val mutableCapabilityStates =
+        MutableStateFlow<Map<String, Map<CapabilityStateKey, MatterCapabilityState>>>(emptyMap())
+    override val capabilityStates: StateFlow<Map<String, Map<CapabilityStateKey, MatterCapabilityState>>> =
+        mutableCapabilityStates.asStateFlow()
 
     init {
+        runtime.controller.setDeviceAttestationDelegate(ATTESTATION_DECISION_TIMEOUT_SECONDS, DeviceAttestationDelegate { pointer, info, result ->
+            val attestation = DeviceAttestationResult(info.vendorId, info.productId, result)
+            val accepted = when (val policy = configuration.attestationPolicy) {
+                DeviceAttestationPolicy.Strict -> attestation.passed
+                DeviceAttestationPolicy.AllowDevelopmentDevices -> true
+                is DeviceAttestationPolicy.Custom -> runCatching { policy.evaluate(attestation) }.getOrDefault(false)
+            }
+            runtime.controller.continueCommissioning(pointer, accepted)
+        })
         mutableDevices.value.forEach { device ->
             sdkScope.launch {
                 runCatching {
@@ -90,6 +129,48 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     }
 
     override fun parseSetupCode(rawCode: String): SetupCode = setupCodeParser.parse(rawCode)
+
+    override suspend fun openCommissioningWindow(
+        deviceId: String,
+        durationSeconds: Int,
+        enhanced: Boolean,
+    ): CommissioningWindow {
+        require(durationSeconds in 1..MAX_COMMISSIONING_WINDOW_SECONDS) {
+            "Commissioning window duration must be between 1 and $MAX_COMMISSIONING_WINDOW_SECONDS seconds"
+        }
+        val nodeId = requireNodeId(deviceId)
+        return withConnectedDevice(nodeId) { devicePointer ->
+            val completed = CompletableDeferred<SetupCode?>()
+            val callback = object : OpenCommissioningCallback {
+                override fun onSuccess(deviceId: Long, manualPairingCode: String?, qrCode: String?) {
+                    val raw = qrCode?.takeIf { it.isNotBlank() } ?: manualPairingCode?.takeIf { it.isNotBlank() }
+                    completed.complete(raw?.let(::parseSetupCode))
+                }
+
+                override fun onError(status: Int, deviceId: Long) {
+                    completed.completeExceptionally(IllegalStateException("Unable to open commissioning window ($status)"))
+                }
+            }
+            val started = if (enhanced) {
+                runtime.controller.openPairingWindowWithPINCallback(
+                    devicePointer,
+                    durationSeconds,
+                    ENHANCED_WINDOW_ITERATIONS,
+                    SecureRandom().nextInt(MAX_DISCRIMINATOR + 1),
+                    null,
+                    callback,
+                )
+            } else {
+                runtime.controller.openPairingWindowCallback(devicePointer, durationSeconds, callback)
+            }
+            check(started) { "Unable to start the commissioning window request" }
+            CommissioningWindow(
+                setupCode = withTimeout(INTERACTION_TIMEOUT_MILLIS) { completed.await() },
+                durationSeconds = durationSeconds,
+                enhanced = enhanced,
+            )
+        }
+    }
 
     @SuppressLint("MissingPermission")
     override fun commissionWifi(
@@ -188,6 +269,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
                 availability = DeviceAvailability.ONLINE,
             )
         }
+        nodeIdStore.saveDevice(requireDevice(deviceId))
         Log.i(TAG, "Discovered ${capabilities.endpoints.size} endpoints for Matter node $nodeId")
         startDeviceStateObservation(deviceId)
         return capabilities
@@ -290,6 +372,12 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         updateDeviceIfPresent(deviceId) { copy(availability = DeviceAvailability.OFFLINE) }
         Log.w(TAG, "Matter OnOff observation stopped for node $deviceId", error)
         emit(OnOffState.Unavailable)
+    }
+
+    override fun observeCapabilities(deviceId: String): Flow<CapabilitySubscriptionEvent> {
+        val capabilities = requireDevice(deviceId).capabilities
+            ?: error("Device capabilities have not been discovered")
+        return capabilitySubscriptionManager.observe(deviceId, capabilities)
     }
 
     override suspend fun setLevel(deviceId: String, capability: LevelCapability, level: Int) {
@@ -491,6 +579,49 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         writeThermostatSetpoint(deviceId, capability, celsius, cooling = false)
     }
 
+    override suspend fun setFanPercent(deviceId: String, capability: FanCapability, percent: Int) {
+        require(percent in 0..100) { "Fan percent must be between 0 and 100" }
+        writeTypedAttribute(deviceId, capability, FAN_PERCENT_SETTING_ATTRIBUTE, TlvWriter().putUnsigned(AnonymousTag, percent).getEncoded())
+    }
+
+    override suspend fun setWindowCoveringPosition(
+        deviceId: String,
+        capability: WindowCoveringCapability,
+        percent: Double,
+    ) {
+        check(capability.supportsLiftPosition) { "Window covering does not expose lift position" }
+        require(percent in 0.0..100.0) { "Window covering position must be between 0 and 100" }
+        val hundredths = (percent * 100).toInt()
+        val tlv = TlvWriter().startStructure(AnonymousTag)
+            .putUnsigned(ContextSpecificTag(0), hundredths)
+            .endStructure().getEncoded()
+        invokeTypedCommand(deviceId, capability, WINDOW_GO_TO_LIFT_PERCENT_COMMAND, tlv)
+    }
+
+    override suspend fun openWindowCovering(deviceId: String, capability: WindowCoveringCapability) =
+        invokeTypedCommand(deviceId, capability, WINDOW_OPEN_COMMAND, emptyCommand())
+
+    override suspend fun closeWindowCovering(deviceId: String, capability: WindowCoveringCapability) =
+        invokeTypedCommand(deviceId, capability, WINDOW_CLOSE_COMMAND, emptyCommand())
+
+    override suspend fun stopWindowCovering(deviceId: String, capability: WindowCoveringCapability) =
+        invokeTypedCommand(deviceId, capability, WINDOW_STOP_COMMAND, emptyCommand())
+
+    override suspend fun controlMedia(
+        deviceId: String,
+        capability: MediaPlaybackCapability,
+        action: MediaPlaybackAction,
+    ) {
+        val commandId = when (action) {
+            MediaPlaybackAction.PLAY -> 0L
+            MediaPlaybackAction.PAUSE -> 1L
+            MediaPlaybackAction.STOP -> 2L
+            MediaPlaybackAction.PREVIOUS -> 4L
+            MediaPlaybackAction.NEXT -> 5L
+        }
+        invokeTypedCommand(deviceId, capability, commandId, emptyCommand())
+    }
+
     override suspend fun readRawAttribute(
         deviceId: String,
         capability: MatterCapability,
@@ -510,7 +641,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         timedRequestTimeoutMillis: Int,
     ): RawWriteResult {
         requireCapability(deviceId, capability)
-        MatterRawPathValidator.requireAttribute(capability, attributeId)
+        MatterRawPathValidator.requireWritableAttribute(capability, attributeId)
         MatterRawPathValidator.requireTimedRequestTimeout(timedRequestTimeoutMillis)
         val nodeId = requireNodeId(deviceId)
         return withConnectedDevice(nodeId) { pointer ->
@@ -726,6 +857,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         }
         nodeIdStore.removeCommissioned(nodeId)
         mutableDevices.value = mutableDevices.value.filterNot { it.id == deviceId }
+        mutableCapabilityStates.value = mutableCapabilityStates.value - deviceId
         Log.i(TAG, "Removed Matter node $nodeId from its fabric and local device list")
     }
 
@@ -775,6 +907,38 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         }
         Log.i(TAG, "Invoked OnOff command on node $nodeId endpoint $endpointId")
     }
+
+    private suspend fun writeTypedAttribute(
+        deviceId: String,
+        capability: MatterCapability,
+        attributeId: Long,
+        tlv: ByteArray,
+    ) {
+        requireCapability(deviceId, capability)
+        MatterRawPathValidator.requireAttribute(capability, attributeId)
+        val nodeId = requireNodeId(deviceId)
+        val result = withConnectedDevice(nodeId) { pointer ->
+            rawInteraction.writeAttribute(pointer, capability, attributeId, tlv, 0)
+        }
+        check(result.statusCode == 0) { "Matter attribute write failed (${result.statusCode})" }
+    }
+
+    private suspend fun invokeTypedCommand(
+        deviceId: String,
+        capability: MatterCapability,
+        commandId: Long,
+        tlv: ByteArray,
+    ) {
+        requireCapability(deviceId, capability)
+        MatterRawPathValidator.requireCommand(capability, commandId)
+        val nodeId = requireNodeId(deviceId)
+        val result = withConnectedDevice(nodeId) { pointer ->
+            rawInteraction.invokeCommand(pointer, capability, commandId, tlv, 0)
+        }
+        check(result.statusCode == 0L) { "Matter command failed (${result.statusCode})" }
+    }
+
+    private fun emptyCommand(): ByteArray = TlvWriter().startStructure(AnonymousTag).endStructure().getEncoded()
 
     private fun defaultClusterCallback(result: CompletableDeferred<Unit>) =
         object : ChipClusters.DefaultClusterCallback {
@@ -947,10 +1111,31 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     }
 
     private fun startDeviceStateObservation(deviceId: String) {
-        if (closed.get() || onOffEndpoint(deviceId) == null) return
+        if (closed.get() || requireDevice(deviceId).capabilities == null) return
         lateinit var observer: Job
         observer = sdkScope.launch {
-            observeOnOff(deviceId).collect()
+            observeCapabilities(deviceId).collect { event ->
+                when (event) {
+                    is CapabilitySubscriptionEvent.Updated -> {
+                        mutableCapabilityStates.update { states ->
+                            states + (deviceId to (states[deviceId].orEmpty() + (event.state.key to event.state)))
+                        }
+                        updateDeviceIfPresent(deviceId) {
+                            copy(
+                                isOn = (event.state as? MatterCapabilityState.OnOff)?.isOn ?: isOn,
+                                availability = DeviceAvailability.ONLINE,
+                            )
+                        }
+                        mutableDevices.value.firstOrNull { it.id == deviceId }?.let(nodeIdStore::saveDevice)
+                    }
+                    is CapabilitySubscriptionEvent.Resubscribing -> {
+                        updateDeviceIfPresent(deviceId) { copy(availability = DeviceAvailability.CONNECTING) }
+                    }
+                    is CapabilitySubscriptionEvent.Unavailable -> {
+                        Log.w(TAG, "Capability ${event.key} unavailable for node $deviceId: ${event.message}")
+                    }
+                }
+            }
         }
         deviceStateObservers.put(deviceId, observer)?.cancel()
         observer.invokeOnCompletion { deviceStateObservers.remove(deviceId, observer) }
@@ -1038,5 +1223,14 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         const val NO_SUBSCRIPTION_ID = -1L
         const val ON_OFF_MIN_INTERVAL_SECONDS = 1
         const val ON_OFF_MAX_INTERVAL_SECONDS = 60
+        const val ATTESTATION_DECISION_TIMEOUT_SECONDS = 30
+        const val MAX_COMMISSIONING_WINDOW_SECONDS = 900
+        const val ENHANCED_WINDOW_ITERATIONS = 1000L
+        const val MAX_DISCRIMINATOR = 4095
+        const val FAN_PERCENT_SETTING_ATTRIBUTE = 2L
+        const val WINDOW_OPEN_COMMAND = 0L
+        const val WINDOW_CLOSE_COMMAND = 1L
+        const val WINDOW_STOP_COMMAND = 2L
+        const val WINDOW_GO_TO_LIFT_PERCENT_COMMAND = 5L
     }
 }

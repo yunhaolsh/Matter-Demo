@@ -13,11 +13,13 @@ import com.example.matter.api.MatterDeviceType
 import com.example.matter.api.MatterDeviceProfileResolver
 import com.example.matter.api.MatterEndpointCapabilities
 import com.example.matter.api.MatterNodeCapabilities
+import com.example.matter.api.MatterVendorClusterRegistry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeout
 
 internal class MatterCapabilityDiscovery(
     private val controller: ChipDeviceController,
+    private val vendorClusterRegistry: MatterVendorClusterRegistry = MatterVendorClusterRegistry(emptyList()),
     private val timeoutMillis: Long = 120_000L,
 ) {
     suspend fun discover(nodeId: Long, devicePointer: Long): MatterNodeCapabilities =
@@ -45,7 +47,10 @@ internal class MatterCapabilityDiscovery(
                         serverClusters = serverClusters,
                         clientClusterIds = descriptor.clientClusterIds,
                         parts = descriptor.parts,
-                        capabilities = serverClusters.map { MatterCapabilityRegistry.map(endpointId, it) },
+                        capabilities = serverClusters.map { cluster ->
+                            vendorClusterRegistry.map(endpointId, cluster)
+                                ?: MatterCapabilityRegistry.map(endpointId, cluster)
+                        },
                     )
                 },
             )

@@ -16,6 +16,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.AlertDialog
@@ -48,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import com.example.matter.api.DeviceAvailability
 import com.example.matter.api.DeviceType
 import com.example.matter.api.LockState
+import com.example.matter.api.MediaPlaybackAction
+import com.example.matter.api.MediaPlaybackState
 import com.example.matter.api.SensorKind
 import com.example.matterhome.AppUiState
 import com.example.matterhome.AppViewModel
@@ -190,6 +197,9 @@ private fun DynamicControl(
         is DeviceControl.Lock -> LockControl(viewModel, deviceId, control, value, online, loading)
         is DeviceControl.Climate -> ClimateControl(viewModel, deviceId, control, value, online, loading)
         is DeviceControl.Sensor -> SensorControl(control, value, loading)
+        is DeviceControl.Fan -> FanControl(viewModel, deviceId, control, value, online, loading)
+        is DeviceControl.WindowCovering -> WindowCoveringControl(viewModel, deviceId, control, value, online, loading)
+        is DeviceControl.Media -> MediaControl(viewModel, deviceId, control, value, online, loading)
         is DeviceControl.Unsupported -> UnsupportedControl(control)
     }
     Spacer(Modifier.height(20.dp))
@@ -353,6 +363,77 @@ private fun SensorControl(control: DeviceControl.Sensor, value: CapabilityUiValu
         else -> reading.toString()
     }
     ControlRow(Icons.Default.Sensors, label, displayed, loading) {}
+}
+
+@Composable
+private fun FanControl(
+    viewModel: AppViewModel,
+    deviceId: String,
+    control: DeviceControl.Fan,
+    value: CapabilityUiValue?,
+    online: Boolean,
+    loading: Boolean,
+) {
+    val remote = (value as? CapabilityUiValue.Fan)?.percent ?: 0
+    var percent by remember(control.key) { mutableFloatStateOf(remote.toFloat()) }
+    LaunchedEffect(remote) { percent = remote.toFloat() }
+    Text("Fan speed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Text("${percent.roundToInt()}%", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Slider(percent, { percent = it }, valueRange = 0f..100f, enabled = online && !loading && control.capability.supportsPercent,
+        onValueChangeFinished = { viewModel.setFanPercent(deviceId, control, percent.roundToInt()) })
+}
+
+@Composable
+private fun WindowCoveringControl(
+    viewModel: AppViewModel,
+    deviceId: String,
+    control: DeviceControl.WindowCovering,
+    value: CapabilityUiValue?,
+    online: Boolean,
+    loading: Boolean,
+) {
+    val remote = (value as? CapabilityUiValue.WindowCovering)?.liftPercent ?: 0.0
+    var position by remember(control.key) { mutableFloatStateOf(remote.toFloat()) }
+    LaunchedEffect(remote) { position = remote.toFloat() }
+    Text("Position · ${position.roundToInt()}%", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Slider(position, { position = it }, valueRange = 0f..100f,
+        enabled = online && !loading && control.capability.supportsLiftPosition,
+        onValueChangeFinished = { viewModel.setWindowPosition(deviceId, control, position.toDouble()) })
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { viewModel.openWindowCovering(deviceId, control) }, enabled = online) { Text("Open") }
+        OutlinedButton(onClick = { viewModel.stopWindowCovering(deviceId, control) }, enabled = online) { Text("Stop") }
+        Button(onClick = { viewModel.closeWindowCovering(deviceId, control) }, enabled = online) { Text("Close") }
+    }
+}
+
+@Composable
+private fun MediaControl(
+    viewModel: AppViewModel,
+    deviceId: String,
+    control: DeviceControl.Media,
+    value: CapabilityUiValue?,
+    online: Boolean,
+    loading: Boolean,
+) {
+    val playback = (value as? CapabilityUiValue.Media)?.state ?: MediaPlaybackState.UNKNOWN
+    Text("Playback · ${playback.name.lowercase().replace('_', ' ')}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        IconButton(onClick = { viewModel.controlMedia(deviceId, control, MediaPlaybackAction.PREVIOUS) }, enabled = online && !loading) {
+            Icon(Icons.Default.SkipPrevious, contentDescription = "Previous")
+        }
+        IconButton(onClick = { viewModel.controlMedia(deviceId, control, MediaPlaybackAction.PLAY) }, enabled = online && !loading) {
+            Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+        }
+        IconButton(onClick = { viewModel.controlMedia(deviceId, control, MediaPlaybackAction.PAUSE) }, enabled = online && !loading) {
+            Icon(Icons.Default.Pause, contentDescription = "Pause")
+        }
+        IconButton(onClick = { viewModel.controlMedia(deviceId, control, MediaPlaybackAction.STOP) }, enabled = online && !loading) {
+            Icon(Icons.Default.Stop, contentDescription = "Stop")
+        }
+        IconButton(onClick = { viewModel.controlMedia(deviceId, control, MediaPlaybackAction.NEXT) }, enabled = online && !loading) {
+            Icon(Icons.Default.SkipNext, contentDescription = "Next")
+        }
+    }
 }
 
 @Composable

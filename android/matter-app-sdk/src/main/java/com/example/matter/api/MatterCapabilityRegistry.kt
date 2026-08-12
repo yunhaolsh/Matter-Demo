@@ -39,6 +39,17 @@ internal object MatterCapabilityRegistry {
             TEMPERATURE_MEASUREMENT_CLUSTER_ID -> SensorCapability(endpointId, cluster, SensorKind.TEMPERATURE)
             HUMIDITY_MEASUREMENT_CLUSTER_ID -> SensorCapability(endpointId, cluster, SensorKind.HUMIDITY)
             OCCUPANCY_SENSING_CLUSTER_ID -> SensorCapability(endpointId, cluster, SensorKind.OCCUPANCY)
+            FAN_CONTROL_CLUSTER_ID -> FanCapability(
+                endpointId,
+                cluster,
+                cluster.hasAttribute(PERCENT_SETTING_ATTRIBUTE_ID) && cluster.hasAttribute(PERCENT_CURRENT_ATTRIBUTE_ID),
+            )
+            WINDOW_COVERING_CLUSTER_ID -> WindowCoveringCapability(
+                endpointId,
+                cluster,
+                cluster.hasAttribute(CURRENT_LIFT_PERCENT_100THS_ATTRIBUTE_ID),
+            )
+            MEDIA_PLAYBACK_CLUSTER_ID -> MediaPlaybackCapability(endpointId, cluster)
             ILLUMINANCE_MEASUREMENT_CLUSTER_ID -> SensorCapability(endpointId, cluster, SensorKind.ILLUMINANCE)
             PRESSURE_MEASUREMENT_CLUSTER_ID -> SensorCapability(endpointId, cluster, SensorKind.PRESSURE)
             else -> RawClusterCapability(endpointId, cluster)
@@ -48,6 +59,24 @@ internal object MatterCapabilityRegistry {
     private fun MatterClusterCapabilities.withRequiredAttributes(): MatterClusterCapabilities =
         when (id) {
             ON_OFF_CLUSTER_ID -> copy(attributeIds = attributeIds + ON_OFF_ATTRIBUTE_ID)
+            LEVEL_CONTROL_CLUSTER_ID -> copy(attributeIds = attributeIds + CURRENT_LEVEL_ATTRIBUTE_ID)
+            COLOR_CONTROL_CLUSTER_ID -> copy(
+                attributeIds = attributeIds + buildSet {
+                    if (hasFeature(HUE_SATURATION_FEATURE)) {
+                        add(CURRENT_HUE_ATTRIBUTE_ID)
+                        add(CURRENT_SATURATION_ATTRIBUTE_ID)
+                    }
+                    if (hasFeature(COLOR_TEMPERATURE_FEATURE)) add(COLOR_TEMPERATURE_ATTRIBUTE_ID)
+                },
+            )
+            DOOR_LOCK_CLUSTER_ID -> copy(attributeIds = attributeIds + LOCK_STATE_ATTRIBUTE_ID)
+            TEMPERATURE_MEASUREMENT_CLUSTER_ID,
+            HUMIDITY_MEASUREMENT_CLUSTER_ID,
+            OCCUPANCY_SENSING_CLUSTER_ID,
+            ILLUMINANCE_MEASUREMENT_CLUSTER_ID,
+            PRESSURE_MEASUREMENT_CLUSTER_ID,
+            -> copy(attributeIds = attributeIds + MEASURED_VALUE_ATTRIBUTE_ID)
+            MEDIA_PLAYBACK_CLUSTER_ID -> copy(attributeIds = attributeIds + MEDIA_CURRENT_STATE_ATTRIBUTE_ID)
             else -> this
         }
 
@@ -73,7 +102,20 @@ internal object MatterCapabilityRegistry {
     const val PRESSURE_MEASUREMENT_CLUSTER_ID = 0x0403L
     const val HUMIDITY_MEASUREMENT_CLUSTER_ID = 0x0405L
     const val OCCUPANCY_SENSING_CLUSTER_ID = 0x0406L
+    const val WINDOW_COVERING_CLUSTER_ID = 0x0102L
+    const val FAN_CONTROL_CLUSTER_ID = 0x0202L
+    const val MEDIA_PLAYBACK_CLUSTER_ID = 0x0506L
     const val ON_OFF_ATTRIBUTE_ID = 0L
+    private const val CURRENT_LEVEL_ATTRIBUTE_ID = 0L
+    private const val CURRENT_HUE_ATTRIBUTE_ID = 0L
+    private const val CURRENT_SATURATION_ATTRIBUTE_ID = 1L
+    private const val COLOR_TEMPERATURE_ATTRIBUTE_ID = 7L
+    private const val LOCK_STATE_ATTRIBUTE_ID = 0L
+    private const val MEASURED_VALUE_ATTRIBUTE_ID = 0L
+    private const val MEDIA_CURRENT_STATE_ATTRIBUTE_ID = 0L
+    private const val PERCENT_CURRENT_ATTRIBUTE_ID = 3L
+    private const val PERCENT_SETTING_ATTRIBUTE_ID = 2L
+    private const val CURRENT_LIFT_PERCENT_100THS_ATTRIBUTE_ID = 14L
     private const val OFF_COMMAND_ID = 0L
     private const val ON_COMMAND_ID = 1L
     private const val TOGGLE_COMMAND_ID = 2L

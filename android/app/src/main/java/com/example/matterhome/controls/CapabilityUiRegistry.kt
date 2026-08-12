@@ -4,6 +4,9 @@ import com.example.matter.api.ColorCapability
 import com.example.matter.api.DoorLockCapability
 import com.example.matter.api.DeviceType
 import com.example.matter.api.LevelCapability
+import com.example.matter.api.FanCapability
+import com.example.matter.api.MediaPlaybackCapability
+import com.example.matter.api.MediaPlaybackState
 import com.example.matter.api.LockState
 import com.example.matter.api.MatterCapability
 import com.example.matter.api.MatterDevice
@@ -12,6 +15,8 @@ import com.example.matter.api.RawClusterCapability
 import com.example.matter.api.SensorCapability
 import com.example.matter.api.ThermostatCapability
 import com.example.matter.api.ThermostatState
+import com.example.matter.api.WindowCoveringCapability
+import com.example.matter.api.VendorClusterCapability
 
 data class CapabilityUiKey(val endpointId: Int, val kind: String)
 
@@ -49,6 +54,18 @@ sealed interface DeviceControl {
         override val key = CapabilityUiKey(capability.endpointId, "sensor-${capability.kind.name}")
     }
 
+    data class Fan(val capability: FanCapability) : DeviceControl {
+        override val key = CapabilityUiKey(capability.endpointId, "fan")
+    }
+
+    data class WindowCovering(val capability: WindowCoveringCapability) : DeviceControl {
+        override val key = CapabilityUiKey(capability.endpointId, "window-covering")
+    }
+
+    data class Media(val capability: MediaPlaybackCapability) : DeviceControl {
+        override val key = CapabilityUiKey(capability.endpointId, "media")
+    }
+
     data class Unsupported(
         override val key: CapabilityUiKey,
         val clusters: List<RawClusterCapability>,
@@ -83,6 +100,10 @@ object CapabilityUiRegistry {
                     is DoorLockCapability -> DeviceControl.Lock(capability)
                     is ThermostatCapability -> DeviceControl.Climate(capability)
                     is SensorCapability -> DeviceControl.Sensor(capability)
+                    is FanCapability -> DeviceControl.Fan(capability)
+                    is WindowCoveringCapability -> DeviceControl.WindowCovering(capability)
+                    is MediaPlaybackCapability -> DeviceControl.Media(capability)
+                    is VendorClusterCapability -> null
                     is RawClusterCapability -> null
                 }
             }
@@ -101,4 +122,7 @@ sealed interface CapabilityUiValue {
     data class Lock(val state: LockState) : CapabilityUiValue
     data class Climate(val state: ThermostatState) : CapabilityUiValue
     data class Sensor(val value: Double?) : CapabilityUiValue
+    data class Fan(val percent: Int?) : CapabilityUiValue
+    data class WindowCovering(val liftPercent: Double?) : CapabilityUiValue
+    data class Media(val state: MediaPlaybackState) : CapabilityUiValue
 }

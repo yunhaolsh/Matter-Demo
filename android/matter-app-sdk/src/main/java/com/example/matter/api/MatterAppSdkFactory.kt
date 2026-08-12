@@ -6,9 +6,9 @@ object MatterAppSdkFactory {
     @Volatile
     private var instance: MatterAppSdk? = null
 
-    fun create(context: Context): MatterAppSdk =
+    fun create(context: Context, configuration: MatterSdkConfiguration = MatterSdkConfiguration()): MatterAppSdk =
         instance ?: synchronized(this) {
-            instance ?: RealMatterAppSdk(context.applicationContext).also { instance = it }
+            instance ?: RealMatterAppSdk(context.applicationContext, configuration).also { instance = it }
         }
 
     fun shutdown() {

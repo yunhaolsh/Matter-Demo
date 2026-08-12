@@ -53,6 +53,9 @@ internal object MatterDeviceProfileResolver {
         when {
             capabilities.any { it is DoorLockCapability } -> DeviceTypeDefinition("Door lock", DeviceType.LOCK)
             capabilities.any { it is ThermostatCapability } -> DeviceTypeDefinition("Thermostat", DeviceType.THERMOSTAT)
+            capabilities.any { it is FanCapability } -> DeviceTypeDefinition("Fan", DeviceType.FAN)
+            capabilities.any { it is WindowCoveringCapability } -> DeviceTypeDefinition("Window covering", DeviceType.WINDOW_COVERING)
+            capabilities.any { it is MediaPlaybackCapability } -> DeviceTypeDefinition("Media player", DeviceType.SPEAKER)
             capabilities.any { it is SensorCapability } -> {
                 val sensor = capabilities.filterIsInstance<SensorCapability>().first()
                 DeviceTypeDefinition(sensor.kind.sensorName(), DeviceType.SENSOR)

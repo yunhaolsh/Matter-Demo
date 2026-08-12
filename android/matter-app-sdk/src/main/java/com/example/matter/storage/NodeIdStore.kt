@@ -2,6 +2,7 @@ package com.example.matter.storage
 
 import android.annotation.SuppressLint
 import android.content.Context
+import com.example.matter.api.MatterDevice
 
 internal class NodeIdStore(context: Context) {
     private val preferences =
@@ -31,6 +32,23 @@ internal class NodeIdStore(context: Context) {
             "Unable to save the commissioned Matter node"
         }
     }
+
+    @Synchronized
+    @SuppressLint("ApplySharedPref")
+    fun saveDevice(device: MatterDevice) {
+        check(
+            preferences.edit()
+                .putString(deviceSnapshotKey(device.id), MatterDeviceSnapshotCodec.encode(device))
+                .commit(),
+        ) {
+            "Unable to save the Matter device directory entry"
+        }
+    }
+
+    @Synchronized
+    fun restoredDevice(nodeId: Long): MatterDevice? =
+        preferences.getString(deviceSnapshotKey(nodeId.toString()), null)
+            ?.let { encoded -> runCatching { MatterDeviceSnapshotCodec.decode(encoded) }.getOrNull() }
 
     @Synchronized
     @SuppressLint("ApplySharedPref")
@@ -65,6 +83,7 @@ internal class NodeIdStore(context: Context) {
         check(
             preferences.edit()
                 .putStringSet(KEY_COMMISSIONED_NODE_IDS, nodeIds - nodeId.toString())
+                .remove(deviceSnapshotKey(nodeId.toString()))
                 .putBoolean(KEY_DEVICE_LIST_MIGRATED, true)
                 .commit(),
         ) {
@@ -73,6 +92,7 @@ internal class NodeIdStore(context: Context) {
     }
 
     private companion object {
+        fun deviceSnapshotKey(deviceId: String) = "device_snapshot_$deviceId"
         const val KEY_NEXT_NODE_ID = "next_node_id"
         const val KEY_COMMISSIONED_NODE_IDS = "commissioned_node_ids"
         const val KEY_DEVICE_LIST_MIGRATED = "device_list_migrated"

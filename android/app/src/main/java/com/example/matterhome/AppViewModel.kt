@@ -11,6 +11,8 @@ import com.example.matter.api.MatterRoom
 import com.example.matter.api.SetupCode
 import com.example.matter.api.WifiCredentials
 import com.example.matter.api.SensorKind
+import com.example.matter.api.MatterCapabilityState
+import com.example.matter.api.MediaPlaybackAction
 import com.example.matterhome.controls.CapabilityUiKey
 import com.example.matterhome.controls.CapabilityUiRegistry
 import com.example.matterhome.controls.CapabilityUiValue
@@ -47,6 +49,21 @@ class AppViewModel(private val sdk: MatterAppSdk) : ViewModel() {
         viewModelScope.launch { sdk.home.collectLatest { update { copy(home = it) } } }
         viewModelScope.launch { sdk.rooms.collectLatest { update { copy(rooms = it) } } }
         viewModelScope.launch { sdk.devices.collectLatest { update { copy(devices = it) } } }
+        viewModelScope.launch {
+            sdk.capabilityStates.collectLatest { states ->
+                val deviceId = state.value.capabilityDeviceId ?: return@collectLatest
+                val values = states[deviceId].orEmpty().mapNotNull { (_, capabilityState) ->
+                    capabilityState.toUiEntry()
+                }.toMap()
+                update {
+                    if (capabilityDeviceId == deviceId) {
+                        copy(capabilityValues = capabilityValues + values)
+                    } else {
+                        this
+                    }
+                }
+            }
+        }
     }
 
     fun selectRoom(roomId: String?) = update { copy(selectedRoomId = roomId) }
@@ -113,7 +130,12 @@ class AppViewModel(private val sdk: MatterAppSdk) : ViewModel() {
             }
         CapabilityUiRegistry.controls(resolvedDevice)
             .flatMap { it.controls }
-            .filterNot { it is DeviceControl.Unsupported }
+            .filterNot {
+                it is DeviceControl.Unsupported ||
+                    it is DeviceControl.Fan ||
+                    it is DeviceControl.WindowCovering ||
+                    it is DeviceControl.Media
+            }
             .forEach { control -> refreshControl(deviceId, control) }
     }
 
@@ -163,6 +185,36 @@ class AppViewModel(private val sdk: MatterAppSdk) : ViewModel() {
             CapabilityUiValue.Climate(sdk.readThermostat(deviceId, control.capability))
         }
 
+    fun setFanPercent(deviceId: String, control: DeviceControl.Fan, percent: Int) = viewModelScope.launch {
+        runCatching { sdk.setFanPercent(deviceId, control.capability, percent) }
+            .onFailure { update { copy(errorMessage = it.message) } }
+    }
+
+    fun setWindowPosition(deviceId: String, control: DeviceControl.WindowCovering, percent: Double) = viewModelScope.launch {
+        runCatching { sdk.setWindowCoveringPosition(deviceId, control.capability, percent) }
+            .onFailure { update { copy(errorMessage = it.message) } }
+    }
+
+    fun openWindowCovering(deviceId: String, control: DeviceControl.WindowCovering) = viewModelScope.launch {
+        runCatching { sdk.openWindowCovering(deviceId, control.capability) }
+            .onFailure { update { copy(errorMessage = it.message) } }
+    }
+
+    fun closeWindowCovering(deviceId: String, control: DeviceControl.WindowCovering) = viewModelScope.launch {
+        runCatching { sdk.closeWindowCovering(deviceId, control.capability) }
+            .onFailure { update { copy(errorMessage = it.message) } }
+    }
+
+    fun stopWindowCovering(deviceId: String, control: DeviceControl.WindowCovering) = viewModelScope.launch {
+        runCatching { sdk.stopWindowCovering(deviceId, control.capability) }
+            .onFailure { update { copy(errorMessage = it.message) } }
+    }
+
+    fun controlMedia(deviceId: String, control: DeviceControl.Media, action: MediaPlaybackAction) = viewModelScope.launch {
+        runCatching { sdk.controlMedia(deviceId, control.capability, action) }
+            .onFailure { update { copy(errorMessage = it.message) } }
+    }
+
     fun remove(deviceId: String, onRemoved: () -> Unit) = viewModelScope.launch {
         runCatching { sdk.removeDevice(deviceId) }
             .onSuccess { onRemoved() }
@@ -192,6 +244,10 @@ class AppViewModel(private val sdk: MatterAppSdk) : ViewModel() {
                         sdk.readTemperatureCelsius(deviceId, control.capability)
                     } else null,
                 )
+                is DeviceControl.Fan,
+                is DeviceControl.WindowCovering,
+                is DeviceControl.Media,
+                -> error("Control state is supplied by its subscription")
                 is DeviceControl.Unsupported -> error("Unsupported controls are not interactive")
             }
         }
@@ -230,6 +286,22 @@ class AppViewModel(private val sdk: MatterAppSdk) : ViewModel() {
 
     private inline fun update(transform: AppUiState.() -> AppUiState) {
         mutableState.value = mutableState.value.transform()
+    }
+
+    private fun MatterCapabilityState.toUiEntry(): Pair<CapabilityUiKey, CapabilityUiValue>? = when (this) {
+        is MatterCapabilityState.OnOff -> CapabilityUiKey(key.endpointId, "power") to CapabilityUiValue.Power(isOn)
+        is MatterCapabilityState.Level -> CapabilityUiKey(key.endpointId, "level") to CapabilityUiValue.Level(value)
+        is MatterCapabilityState.Color -> CapabilityUiKey(key.endpointId, "color") to
+            CapabilityUiValue.Color(value.hue, value.saturation, value.colorTemperatureMireds)
+        is MatterCapabilityState.Lock -> CapabilityUiKey(key.endpointId, "lock") to CapabilityUiValue.Lock(value)
+        is MatterCapabilityState.Thermostat -> CapabilityUiKey(key.endpointId, "climate") to CapabilityUiValue.Climate(value)
+        is MatterCapabilityState.Sensor -> key.sensorKind?.let { sensorKind ->
+            CapabilityUiKey(key.endpointId, "sensor-${sensorKind.name}") to CapabilityUiValue.Sensor(value)
+        }
+        is MatterCapabilityState.Fan -> CapabilityUiKey(key.endpointId, "fan") to CapabilityUiValue.Fan(percent)
+        is MatterCapabilityState.WindowCovering -> CapabilityUiKey(key.endpointId, "window-covering") to
+            CapabilityUiValue.WindowCovering(liftPercent)
+        is MatterCapabilityState.MediaPlayback -> CapabilityUiKey(key.endpointId, "media") to CapabilityUiValue.Media(state)
     }
 
     companion object {

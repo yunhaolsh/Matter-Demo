@@ -54,6 +54,7 @@ class MatterCapabilityRegistryTest {
         ) as SensorCapability
 
         assertTrue(capability.kind == SensorKind.TEMPERATURE)
+        assertTrue(0L in capability.cluster.attributeIds)
     }
 
     @Test
@@ -89,6 +90,7 @@ class MatterCapabilityRegistryTest {
         assertTrue(capability.supportsHueSaturation)
         assertFalse(capability.supportsXy)
         assertTrue(capability.supportsColorTemperature)
+        assertTrue(setOf(0L, 1L, 7L).all { it in capability.cluster.attributeIds })
     }
 
     @Test
