@@ -24,6 +24,7 @@ import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
 internal class MatterBleTransport(
@@ -59,8 +60,9 @@ internal class MatterBleTransport(
         val settings =
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
 
-        return withTimeout(SCAN_TIMEOUT_MILLIS) {
-            suspendCancellableCoroutine { continuation ->
+        return try {
+            withTimeout(SCAN_TIMEOUT_MILLIS) {
+                suspendCancellableCoroutine { continuation ->
                 @SuppressLint("MissingPermission")
                 val callback =
                     object : ScanCallback() {
@@ -82,7 +84,10 @@ internal class MatterBleTransport(
                     }
                 scanner.startScan(listOf(filter), settings, callback)
                 continuation.invokeOnCancellation { scanner.stopScan(callback) }
+                }
             }
+        } catch (timeout: TimeoutCancellationException) {
+            throw MatterBleDeviceNotFoundException(timeout)
         }
     }
 
@@ -201,3 +206,9 @@ internal class MatterBleTransport(
         const val CONNECT_TIMEOUT_MILLIS = 20_000L
     }
 }
+
+internal class MatterBleDeviceNotFoundException(cause: Throwable) :
+    IllegalStateException(
+        "Matter device was not found over Bluetooth. Restart the device or put it back into pairing mode, then try again.",
+        cause,
+    )

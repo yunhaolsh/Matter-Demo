@@ -16,6 +16,7 @@ import chip.devicecontroller.model.ChipAttributePath
 import chip.devicecontroller.model.ChipEventPath
 import chip.devicecontroller.model.NodeState
 import com.example.matter.commissioning.MatterBleTransport
+import com.example.matter.commissioning.MatterBleDeviceNotFoundException
 import com.example.matter.controller.MatterControllerRuntime
 import com.example.matter.controller.MatterCapabilityDiscovery
 import com.example.matter.controller.MatterRawInteraction
@@ -153,6 +154,8 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
                     emit(CommissioningEvent.Completed(discoveredDevice))
                 }
             }
+        } catch (notFound: MatterBleDeviceNotFoundException) {
+            emit(CommissioningEvent.Failed(requireNotNull(notFound.message)))
         } catch (timeout: TimeoutCancellationException) {
             runtime.controller.shutdownCommissioning()
             emit(CommissioningEvent.Failed("Matter commissioning timed out"))

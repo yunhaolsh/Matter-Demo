@@ -71,7 +71,7 @@ fun CommissioningProgressScreen(
             Text(event.message, color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(20.dp))
             Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Text("Try again")
+                Text("Back to device setup")
             }
         } else {
             stages.forEachIndexed { index, stage ->
