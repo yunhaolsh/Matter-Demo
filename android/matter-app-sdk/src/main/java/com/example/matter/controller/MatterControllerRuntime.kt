@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal class MatterControllerRuntime private constructor(
     @Suppress("unused") private val platform: AndroidChipPlatform,
+    internal val bleManager: AndroidBleManager,
     internal val controller: ChipDeviceController,
 ) : Closeable {
     private val closed = AtomicBoolean(false)
@@ -37,9 +38,10 @@ internal class MatterControllerRuntime private constructor(
             ChipDeviceController.loadJni()
 
             val resolverState = NsdManagerServiceResolver.NsdManagerResolverAvailState()
+            val bleManager = AndroidBleManager(applicationContext)
             val platform =
                 AndroidChipPlatform(
-                    AndroidBleManager(applicationContext),
+                    bleManager,
                     AndroidNfcCommissioningManager(),
                     PreferencesKeyValueStoreManager(applicationContext),
                     PreferencesConfigurationManager(applicationContext),
@@ -55,7 +57,7 @@ internal class MatterControllerRuntime private constructor(
                         .setEnableServerInteractions(true)
                         .build(),
                 )
-            return MatterControllerRuntime(platform, controller)
+            return MatterControllerRuntime(platform, bleManager, controller)
         }
     }
 }

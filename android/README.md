@@ -3,7 +3,8 @@
 An independent Android product shell for a Matter controller. The App still uses
 the UI-free SDK's in-memory device implementation while M1 is under development.
 The SDK now bundles locally generated connectedhomeip Java/JNI artifacts, validates
-setup codes with the official parser, and owns an internal Controller runtime.
+setup codes with the official parser, owns an internal Controller runtime, and
+implements BLE-to-Wi-Fi commissioning. Hardware validation is still required.
 
 ## Prepare Matter SDK artifacts
 
@@ -33,6 +34,19 @@ export ANDROID_HOME=/home/yunhao/Android/Sdk
 ```
 
 The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
+
+## Hardware commissioning
+
+Connect an arm64 Android 9+ phone and install the debug APK:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Use a factory-reset Matter over Wi-Fi device. The App requests Bluetooth permissions,
+accepts a real QR payload or manual setup code, scans the Matter BLE service, connects
+GATT, and provisions the supplied Wi-Fi credentials. Camera scanning is not implemented
+yet; use manual entry or the official test-code button during development.
 
 ## Architecture boundary
 

@@ -98,6 +98,8 @@ class AppViewModel(private val sdk: MatterAppSdk) : ViewModel() {
 
     fun clearError() = update { copy(errorMessage = null) }
 
+    fun showError(message: String) = update { copy(errorMessage = message) }
+
     override fun onCleared() {
         sdk.close()
         super.onCleared()

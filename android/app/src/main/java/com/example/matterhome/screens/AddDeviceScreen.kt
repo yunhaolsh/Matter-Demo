@@ -93,11 +93,11 @@ fun AddDeviceScreen(viewModel: AppViewModel, onBack: () -> Unit, onCodeReady: ()
         Spacer(Modifier.height(24.dp))
         Button(
             onClick = {
-                if (viewModel.parseSetupCode("MT:DEMO123")) onCodeReady()
+                if (viewModel.parseSetupCode("MT:W0GU2OTB00KA0648G00")) onCodeReady()
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
         ) {
-            Text("Simulate QR scan")
+            Text("Use Matter test code")
         }
         TextButton(onClick = { showManualCode = true }) {
             Text("Enter setup code manually")

@@ -1,5 +1,10 @@
 package com.example.matterhome.navigation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
@@ -16,6 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -31,6 +40,7 @@ import com.example.matterhome.screens.DeviceDetailScreen
 import com.example.matterhome.screens.HomeScreen
 import com.example.matterhome.screens.SettingsScreen
 import com.example.matterhome.screens.WifiSetupScreen
+import com.example.matter.api.WifiCredentials
 
 private object Routes {
     const val Home = "home"
@@ -46,11 +56,31 @@ private object Routes {
 @Composable
 fun MatterHomeApp(viewModel: AppViewModel) {
     val navController = rememberNavController()
+    val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val showBottomBar = route in setOf(Routes.Home, Routes.Automations, Routes.Settings)
+    var pendingCredentials by remember { mutableStateOf<WifiCredentials?>(null) }
+    val bluetoothPermissions = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+    val permissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+            val credentials = pendingCredentials
+            pendingCredentials = null
+            if (credentials != null && bluetoothPermissions.all { grants[it] == true }) {
+                viewModel.commission(credentials)
+                navController.navigate(Routes.Progress)
+            } else {
+                viewModel.showError("Bluetooth permission is required to add a Matter device")
+            }
+        }
 
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let {
@@ -93,8 +123,17 @@ fun MatterHomeApp(viewModel: AppViewModel) {
                 WifiSetupScreen(
                     onBack = { navController.popBackStack() },
                     onContinue = { credentials ->
-                        viewModel.commission(credentials)
-                        navController.navigate(Routes.Progress)
+                        val missingPermissions =
+                            bluetoothPermissions.filter {
+                                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+                            }
+                        if (missingPermissions.isEmpty()) {
+                            viewModel.commission(credentials)
+                            navController.navigate(Routes.Progress)
+                        } else {
+                            pendingCredentials = credentials
+                            permissionLauncher.launch(missingPermissions.toTypedArray())
+                        }
                     },
                 )
             }
