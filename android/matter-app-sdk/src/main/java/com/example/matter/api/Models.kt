@@ -1,6 +1,19 @@
 package com.example.matter.api
 
-enum class DeviceType { LIGHT, PLUG, UNKNOWN }
+enum class DeviceType {
+    LIGHT,
+    PLUG,
+    LOCK,
+    THERMOSTAT,
+    SPEAKER,
+    SENSOR,
+    FAN,
+    SWITCH,
+    WINDOW_COVERING,
+    CAMERA,
+    APPLIANCE,
+    UNKNOWN,
+}
 
 enum class ConnectionMode { LOCAL, HUB }
 
@@ -25,11 +38,26 @@ data class MatterDevice(
     val availability: DeviceAvailability,
     val isOn: Boolean,
     val capabilities: MatterNodeCapabilities? = null,
+    val profile: MatterDeviceProfile? = null,
 )
 
 data class MatterNodeCapabilities(
     val nodeId: String,
     val endpoints: List<MatterEndpointCapabilities>,
+    val profile: MatterDeviceProfile? = null,
+)
+
+data class MatterDeviceProfile(
+    val type: DeviceType,
+    val displayName: String,
+    val endpoints: List<MatterEndpointProfile>,
+)
+
+data class MatterEndpointProfile(
+    val endpointId: Int,
+    val type: DeviceType,
+    val displayName: String,
+    val deviceTypeId: Long?,
 )
 
 data class MatterEndpointCapabilities(

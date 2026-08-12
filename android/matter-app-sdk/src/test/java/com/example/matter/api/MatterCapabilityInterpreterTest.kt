@@ -22,7 +22,7 @@ class MatterCapabilityInterpreterTest {
         val capabilities = node(endpoint(1, deviceType = 0x0302, clusters = setOf(0x0402)))
 
         assertNull(MatterCapabilityInterpreter.onOffEndpoint(capabilities))
-        assertEquals(DeviceType.UNKNOWN, MatterCapabilityInterpreter.deviceType(capabilities))
+        assertEquals(DeviceType.SENSOR, MatterCapabilityInterpreter.deviceType(capabilities))
     }
 
     @Test

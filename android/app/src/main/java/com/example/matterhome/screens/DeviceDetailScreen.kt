@@ -15,9 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.DevicesOther
-import androidx.compose.material.icons.filled.ElectricalServices
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Thermostat
@@ -57,6 +54,7 @@ import com.example.matterhome.AppViewModel
 import com.example.matterhome.controls.CapabilityUiRegistry
 import com.example.matterhome.controls.CapabilityUiValue
 import com.example.matterhome.controls.DeviceControl
+import com.example.matterhome.components.icon
 import com.example.matterhome.theme.Green
 import kotlin.math.roundToInt
 
@@ -109,16 +107,18 @@ fun DeviceDetailScreen(
                 } else {
                     groups.forEachIndexed { index, group ->
                         if (index > 0) Divider(Modifier.padding(vertical = 24.dp))
-                        if (groups.size > 1) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(group.type.icon(), contentDescription = null, modifier = Modifier.size(22.dp))
                             Text(
-                                "Device section ${index + 1}",
+                                group.displayName,
+                                modifier = Modifier.padding(start = 10.dp),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
-                            Spacer(Modifier.height(8.dp))
                         }
+                        Spacer(Modifier.height(8.dp))
                         group.controls.forEach { control ->
-                            DynamicControl(viewModel, device.id, device.isOn, control, state, online)
+                            DynamicControl(viewModel, device.id, device.isOn, group.type, control, state, online)
                         }
                     }
                 }
@@ -149,11 +149,7 @@ private fun DeviceHeader(type: DeviceType, availability: DeviceAvailability, con
     val online = availability == DeviceAvailability.ONLINE
     Spacer(Modifier.height(20.dp))
     Icon(
-        when (type) {
-            DeviceType.LIGHT -> Icons.Default.Lightbulb
-            DeviceType.PLUG -> Icons.Default.ElectricalServices
-            DeviceType.UNKNOWN -> Icons.Default.DevicesOther
-        },
+        type.icon(),
         contentDescription = null,
         modifier = Modifier.size(48.dp),
         tint = if (online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -180,6 +176,7 @@ private fun DynamicControl(
     viewModel: AppViewModel,
     deviceId: String,
     deviceIsOn: Boolean,
+    deviceType: DeviceType,
     control: DeviceControl,
     state: AppUiState,
     online: Boolean,
@@ -187,8 +184,8 @@ private fun DynamicControl(
     val value = state.capabilityValues[control.key]
     val loading = control.key in state.loadingCapabilities
     when (control) {
-        is DeviceControl.Power -> PowerControl(viewModel, deviceId, control, value, deviceIsOn, online, loading)
-        is DeviceControl.Level -> LevelControl(viewModel, deviceId, control, value, online, loading)
+        is DeviceControl.Power -> PowerControl(viewModel, deviceId, deviceType, control, value, deviceIsOn, online, loading)
+        is DeviceControl.Level -> LevelControl(viewModel, deviceId, deviceType, control, value, online, loading)
         is DeviceControl.Color -> ColorControl(viewModel, deviceId, control, value, online, loading)
         is DeviceControl.Lock -> LockControl(viewModel, deviceId, control, value, online, loading)
         is DeviceControl.Climate -> ClimateControl(viewModel, deviceId, control, value, online, loading)
@@ -202,6 +199,7 @@ private fun DynamicControl(
 private fun PowerControl(
     viewModel: AppViewModel,
     deviceId: String,
+    deviceType: DeviceType,
     control: DeviceControl.Power,
     value: CapabilityUiValue?,
     deviceIsOn: Boolean,
@@ -209,7 +207,9 @@ private fun PowerControl(
     loading: Boolean,
 ) {
     val isOn = (value as? CapabilityUiValue.Power)?.isOn ?: deviceIsOn
-    ControlRow(Icons.Default.Lightbulb, "Power", if (isOn) "On" else "Off", loading) {
+    val title = if (deviceType == DeviceType.SPEAKER) "Sound" else "Power"
+    val state = if (deviceType == DeviceType.SPEAKER && !isOn) "Muted" else if (isOn) "On" else "Off"
+    ControlRow(deviceType.icon(), title, state, loading) {
         Switch(
             checked = isOn,
             onCheckedChange = { viewModel.setPower(deviceId, control, it) },
@@ -222,6 +222,7 @@ private fun PowerControl(
 private fun LevelControl(
     viewModel: AppViewModel,
     deviceId: String,
+    deviceType: DeviceType,
     control: DeviceControl.Level,
     value: CapabilityUiValue?,
     online: Boolean,
@@ -230,7 +231,13 @@ private fun LevelControl(
     val remote = (value as? CapabilityUiValue.Level)?.value ?: control.capability.minimum
     var level by remember(control.key) { mutableFloatStateOf(remote.toFloat()) }
     LaunchedEffect(remote) { level = remote.toFloat() }
-    Text("Brightness", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    val title = when (deviceType) {
+        DeviceType.LIGHT -> "Brightness"
+        DeviceType.SPEAKER -> "Volume"
+        DeviceType.PLUG -> "Output level"
+        else -> "Level"
+    }
+    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     Text("${((level / control.capability.maximum) * 100).roundToInt()}%", color = MaterialTheme.colorScheme.onSurfaceVariant)
     Slider(
         value = level,

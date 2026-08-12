@@ -18,9 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ElectricalServices
-import androidx.compose.material.icons.filled.DevicesOther
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,7 +42,9 @@ import androidx.compose.ui.unit.dp
 import com.example.matter.api.DeviceAvailability
 import com.example.matter.api.DeviceType
 import com.example.matter.api.MatterDevice
+import com.example.matter.api.OnOffCapability
 import com.example.matterhome.AppViewModel
+import com.example.matterhome.components.icon
 import com.example.matterhome.theme.Green
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -135,6 +134,10 @@ fun HomeScreen(
 @Composable
 private fun DeviceRow(device: MatterDevice, onOpen: () -> Unit, onPower: () -> Unit) {
     val online = device.availability == DeviceAvailability.ONLINE
+    val hasPower = device.capabilities?.endpoints
+        ?.flatMap { it.capabilities }
+        ?.any { it is OnOffCapability }
+        ?: (device.type == DeviceType.LIGHT || device.type == DeviceType.PLUG)
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         shape = RoundedCornerShape(8.dp),
@@ -146,11 +149,7 @@ private fun DeviceRow(device: MatterDevice, onOpen: () -> Unit, onPower: () -> U
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = when (device.type) {
-                    DeviceType.LIGHT -> Icons.Default.Lightbulb
-                    DeviceType.PLUG -> Icons.Default.ElectricalServices
-                    DeviceType.UNKNOWN -> Icons.Default.DevicesOther
-                },
+                imageVector = device.type.icon(),
                 contentDescription = null,
                 tint = if (device.isOn && online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(30.dp),
@@ -159,17 +158,23 @@ private fun DeviceRow(device: MatterDevice, onOpen: () -> Unit, onPower: () -> U
                 Text(device.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
                 Text(device.room.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    if (online) "Online · ${if (device.isOn) "On" else "Off"}" else "Offline · Last state ${if (device.isOn) "on" else "off"}",
+                    when {
+                        !online -> "Offline"
+                        hasPower -> "Online · ${if (device.isOn) "On" else "Off"}"
+                        else -> "Online"
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     color = if (online) Green else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onPower, enabled = online, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    Icons.Default.PowerSettingsNew,
-                    contentDescription = if (device.isOn) "Turn ${device.name} off" else "Turn ${device.name} on",
-                    tint = if (device.isOn && online) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                )
+            if (hasPower) {
+                IconButton(onClick = onPower, enabled = online, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        Icons.Default.PowerSettingsNew,
+                        contentDescription = if (device.isOn) "Turn ${device.name} off" else "Turn ${device.name} on",
+                        tint = if (device.isOn && online) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                    )
+                }
             }
         }
     }

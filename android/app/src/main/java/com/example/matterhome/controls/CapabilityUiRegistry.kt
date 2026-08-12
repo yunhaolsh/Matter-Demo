@@ -2,6 +2,7 @@ package com.example.matterhome.controls
 
 import com.example.matter.api.ColorCapability
 import com.example.matter.api.DoorLockCapability
+import com.example.matter.api.DeviceType
 import com.example.matter.api.LevelCapability
 import com.example.matter.api.LockState
 import com.example.matter.api.MatterCapability
@@ -14,7 +15,12 @@ import com.example.matter.api.ThermostatState
 
 data class CapabilityUiKey(val endpointId: Int, val kind: String)
 
-data class EndpointControlGroup(val endpointId: Int, val controls: List<DeviceControl>)
+data class EndpointControlGroup(
+    val endpointId: Int,
+    val displayName: String,
+    val type: DeviceType,
+    val controls: List<DeviceControl>,
+)
 
 sealed interface DeviceControl {
     val key: CapabilityUiKey
@@ -56,7 +62,13 @@ object CapabilityUiRegistry {
             .filter { it.endpointId != ROOT_ENDPOINT }
             .mapNotNull { endpoint ->
                 mapEndpoint(endpoint.capabilities).takeIf { it.isNotEmpty() }?.let { controls ->
-                    EndpointControlGroup(endpoint.endpointId, controls)
+                    val profile = device.profile?.endpoints?.firstOrNull { it.endpointId == endpoint.endpointId }
+                    EndpointControlGroup(
+                        endpointId = endpoint.endpointId,
+                        displayName = profile?.displayName ?: "Device section",
+                        type = profile?.type ?: DeviceType.UNKNOWN,
+                        controls = controls,
+                    )
                 }
             }
             .toList()

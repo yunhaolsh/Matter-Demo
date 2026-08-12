@@ -7,6 +7,8 @@ import com.example.matter.api.LevelCapability
 import com.example.matter.api.MatterCapability
 import com.example.matter.api.MatterClusterCapabilities
 import com.example.matter.api.MatterDevice
+import com.example.matter.api.MatterDeviceProfile
+import com.example.matter.api.MatterEndpointProfile
 import com.example.matter.api.MatterEndpointCapabilities
 import com.example.matter.api.MatterNodeCapabilities
 import com.example.matter.api.MatterRoom
@@ -26,6 +28,7 @@ class CapabilityUiRegistryTest {
         val groups = CapabilityUiRegistry.controls(device(endpoint(0, rootRaw), endpoint(4, power, level)))
 
         assertEquals(listOf(4), groups.map { it.endpointId })
+        assertEquals("Dimmable light", groups.single().displayName)
         assertTrue(groups.single().controls[0] is DeviceControl.Power)
         assertTrue(groups.single().controls[1] is DeviceControl.Level)
     }
@@ -67,6 +70,13 @@ class CapabilityUiRegistryTest {
             availability = DeviceAvailability.ONLINE,
             isOn = false,
             capabilities = MatterNodeCapabilities("7", endpoints.toList()),
+            profile = MatterDeviceProfile(
+                DeviceType.LIGHT,
+                "Dimmable light",
+                endpoints.filter { it.endpointId != 0 }.map {
+                    MatterEndpointProfile(it.endpointId, DeviceType.LIGHT, "Dimmable light", 0x0101)
+                },
+            ),
         )
 
     private fun cluster(id: Long) =

@@ -26,6 +26,8 @@
 - 已将 OnOff 产品状态接入常驻订阅：恢复设备和新配网设备会自动建立观察任务，设备端按键变化可实时刷新 App
 - App 已实现 Capability UI Registry 与动态设备详情页：按 Endpoint 将 OnOff、Level、Color、DoorLock、Thermostat 和传感器能力映射为控制面板
 - 动态控制按能力对象寻址，支持一个 Node 上的多个 Endpoint；未知及厂商私有 Cluster 仅作安全提示，不会被误当成灯或插座控制
+- 已实现 Device Profile Resolver：根据 Descriptor `DeviceTypeList` 识别灯、插座、门锁、温控器、音箱、传感器、风扇、开关、窗帘、摄像头和常见家电
+- 设备默认名称、类别图标和 Endpoint 区域名称由 Profile 统一生成；多 Endpoint 同类设备自动编号，缺失类型声明时仅作保守能力命名
 - SDK 关闭、设备删除和重新发现能力时会取消对应订阅，避免重复订阅及 Operational Device Pointer 泄漏
 - Controller Runtime 由 App 进程单例持有，Activity/ViewModel 重建不会重复初始化 connectedhomeip 原生全局状态
 - 已实现 CameraX + ML Kit 实时扫码：相机权限、后摄预览、Matter QR 校验、重复识别保护、闪光灯和页面退出资源释放均已接通

@@ -179,9 +179,12 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
             capabilityDiscovery.discover(nodeId, devicePointer)
         }
         updateDevice(deviceId) {
+            val profile = requireNotNull(capabilities.profile)
             copy(
-                type = MatterCapabilityInterpreter.deviceType(capabilities),
+                name = if (name == DEFAULT_DEVICE_NAME) profile.displayName else name,
+                type = profile.type,
                 capabilities = capabilities,
+                profile = profile,
                 availability = DeviceAvailability.ONLINE,
             )
         }
@@ -922,7 +925,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     private fun restoredDevice(nodeId: Long) =
         MatterDevice(
             id = nodeId.toString(),
-            name = "Matter device",
+            name = DEFAULT_DEVICE_NAME,
             room = defaultRoom,
             type = DeviceType.UNKNOWN,
             connectionMode = ConnectionMode.LOCAL,
@@ -1026,6 +1029,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     }
 
     private companion object {
+        const val DEFAULT_DEVICE_NAME = "Matter device"
         const val TAG = "MatterAppSdk"
         const val INTERACTION_TIMEOUT_MILLIS = 30_000L
         const val CAPABILITY_DISCOVERY_TIMEOUT_MILLIS = 120_000L

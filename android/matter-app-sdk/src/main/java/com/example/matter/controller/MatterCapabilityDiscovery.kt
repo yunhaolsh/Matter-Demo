@@ -10,6 +10,7 @@ import chip.devicecontroller.model.NodeState
 import com.example.matter.api.MatterClusterCapabilities
 import com.example.matter.api.MatterCapabilityRegistry
 import com.example.matter.api.MatterDeviceType
+import com.example.matter.api.MatterDeviceProfileResolver
 import com.example.matter.api.MatterEndpointCapabilities
 import com.example.matter.api.MatterNodeCapabilities
 import kotlinx.coroutines.CompletableDeferred
@@ -32,7 +33,7 @@ internal class MatterCapabilityDiscovery(
             }
 
             val metadata = readClusterMetadata(devicePointer, descriptors)
-            MatterNodeCapabilities(
+            val capabilities = MatterNodeCapabilities(
                 nodeId = nodeId.toString(),
                 endpoints = descriptors.map { (endpointId, descriptor) ->
                     val serverClusters = descriptor.serverClusterIds.map { clusterId ->
@@ -48,6 +49,7 @@ internal class MatterCapabilityDiscovery(
                     )
                 },
             )
+            capabilities.copy(profile = MatterDeviceProfileResolver.resolve(capabilities))
         }
 
     private suspend fun readDescriptor(devicePointer: Long, endpointId: Int): EndpointDescriptor {
