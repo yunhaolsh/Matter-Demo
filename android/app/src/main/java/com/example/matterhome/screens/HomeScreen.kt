@@ -51,7 +51,6 @@ import com.example.matterhome.theme.Green
 @Composable
 fun HomeScreen(
     viewModel: AppViewModel,
-    contentPadding: PaddingValues,
     onAddDevice: () -> Unit,
     onDevice: (String) -> Unit,
 ) {
@@ -80,7 +79,7 @@ fun HomeScreen(
                 start = 16.dp,
                 top = innerPadding.calculateTopPadding() + 8.dp,
                 end = 16.dp,
-                bottom = contentPadding.calculateBottomPadding() + 88.dp,
+                bottom = innerPadding.calculateBottomPadding() + 88.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

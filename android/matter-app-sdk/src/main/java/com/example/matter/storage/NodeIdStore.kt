@@ -18,8 +18,64 @@ internal class NodeIdStore(context: Context) {
         return nodeId
     }
 
+    @Synchronized
+    @SuppressLint("ApplySharedPref")
+    fun markCommissioned(nodeId: Long) {
+        val nodeIds = preferences.getStringSet(KEY_COMMISSIONED_NODE_IDS, emptySet()).orEmpty()
+        check(
+            preferences.edit()
+                .putStringSet(KEY_COMMISSIONED_NODE_IDS, nodeIds + nodeId.toString())
+                .putBoolean(KEY_DEVICE_LIST_MIGRATED, true)
+                .commit(),
+        ) {
+            "Unable to save the commissioned Matter node"
+        }
+    }
+
+    @Synchronized
+    @SuppressLint("ApplySharedPref")
+    fun commissionedNodeIds(): Set<Long> {
+        if (!preferences.getBoolean(KEY_DEVICE_LIST_MIGRATED, false)) {
+            val savedNodeIds = preferences.getStringSet(KEY_COMMISSIONED_NODE_IDS, emptySet()).orEmpty()
+            val nextNodeId = preferences.getLong(KEY_NEXT_NODE_ID, FIRST_NODE_ID)
+            val migratedNodeIds =
+                if (savedNodeIds.isEmpty() && nextNodeId > FIRST_NODE_ID) {
+                    setOf((nextNodeId - 1).toString())
+                } else {
+                    savedNodeIds
+                }
+            check(
+                preferences.edit()
+                    .putStringSet(KEY_COMMISSIONED_NODE_IDS, migratedNodeIds)
+                    .putBoolean(KEY_DEVICE_LIST_MIGRATED, true)
+                    .commit(),
+            ) {
+                "Unable to migrate commissioned Matter nodes"
+            }
+        }
+        return preferences.getStringSet(KEY_COMMISSIONED_NODE_IDS, emptySet()).orEmpty()
+            .mapNotNull(String::toLongOrNull)
+            .toSet()
+    }
+
+    @Synchronized
+    @SuppressLint("ApplySharedPref")
+    fun removeCommissioned(nodeId: Long) {
+        val nodeIds = preferences.getStringSet(KEY_COMMISSIONED_NODE_IDS, emptySet()).orEmpty()
+        check(
+            preferences.edit()
+                .putStringSet(KEY_COMMISSIONED_NODE_IDS, nodeIds - nodeId.toString())
+                .putBoolean(KEY_DEVICE_LIST_MIGRATED, true)
+                .commit(),
+        ) {
+            "Unable to remove the commissioned Matter node"
+        }
+    }
+
     private companion object {
         const val KEY_NEXT_NODE_ID = "next_node_id"
+        const val KEY_COMMISSIONED_NODE_IDS = "commissioned_node_ids"
+        const val KEY_DEVICE_LIST_MIGRATED = "device_list_migrated"
         const val FIRST_NODE_ID = 1L
     }
 }

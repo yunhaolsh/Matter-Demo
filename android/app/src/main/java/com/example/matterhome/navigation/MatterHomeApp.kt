@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
@@ -100,12 +101,11 @@ fun MatterHomeApp(viewModel: AppViewModel) {
         NavHost(
             navController = navController,
             startDestination = Routes.Home,
-            modifier = Modifier,
+            modifier = Modifier.padding(padding),
         ) {
             composable(Routes.Home) {
                 HomeScreen(
                     viewModel = viewModel,
-                    contentPadding = padding,
                     onAddDevice = { navController.navigate(Routes.AddDevice) },
                     onDevice = { navController.navigate(Routes.device(it)) },
                 )
