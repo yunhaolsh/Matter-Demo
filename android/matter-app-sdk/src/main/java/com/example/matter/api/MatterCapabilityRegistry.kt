@@ -1,8 +1,9 @@
 package com.example.matter.api
 
 internal object MatterCapabilityRegistry {
-    fun map(endpointId: Int, cluster: MatterClusterCapabilities): MatterCapability =
-        when (cluster.id) {
+    fun map(endpointId: Int, cluster: MatterClusterCapabilities): MatterCapability {
+        val cluster = cluster.withRequiredAttributes()
+        return when (cluster.id) {
             ON_OFF_CLUSTER_ID -> OnOffCapability(
                 endpointId = endpointId,
                 cluster = cluster,
@@ -42,6 +43,13 @@ internal object MatterCapabilityRegistry {
             PRESSURE_MEASUREMENT_CLUSTER_ID -> SensorCapability(endpointId, cluster, SensorKind.PRESSURE)
             else -> RawClusterCapability(endpointId, cluster)
         }
+    }
+
+    private fun MatterClusterCapabilities.withRequiredAttributes(): MatterClusterCapabilities =
+        when (id) {
+            ON_OFF_CLUSTER_ID -> copy(attributeIds = attributeIds + ON_OFF_ATTRIBUTE_ID)
+            else -> this
+        }
 
     private fun MatterClusterCapabilities.accepts(commandId: Long): Boolean =
         commandId in acceptedCommandIds
@@ -62,6 +70,7 @@ internal object MatterCapabilityRegistry {
     const val PRESSURE_MEASUREMENT_CLUSTER_ID = 0x0403L
     const val HUMIDITY_MEASUREMENT_CLUSTER_ID = 0x0405L
     const val OCCUPANCY_SENSING_CLUSTER_ID = 0x0406L
+    const val ON_OFF_ATTRIBUTE_ID = 0L
     private const val OFF_COMMAND_ID = 0L
     private const val ON_COMMAND_ID = 1L
     private const val TOGGLE_COMMAND_ID = 2L

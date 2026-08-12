@@ -15,6 +15,7 @@ class MatterCapabilityRegistryTest {
         assertTrue(capability.supportsOff)
         assertTrue(capability.supportsOn)
         assertFalse(capability.supportsToggle)
+        assertTrue(MatterCapabilityRegistry.ON_OFF_ATTRIBUTE_ID in capability.cluster.attributeIds)
     }
 
     @Test

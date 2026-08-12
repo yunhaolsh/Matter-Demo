@@ -247,7 +247,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         subscribeRaw(
             deviceId = deviceId,
             capability = capability,
-            attributeIds = setOf(ON_OFF_ATTRIBUTE_ID),
+            attributeIds = setOf(MatterCapabilityRegistry.ON_OFF_ATTRIBUTE_ID),
             minIntervalSeconds = ON_OFF_MIN_INTERVAL_SECONDS,
             maxIntervalSeconds = ON_OFF_MAX_INTERVAL_SECONDS,
         ).collect { event ->
@@ -1018,7 +1018,6 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         const val COMMISSIONING_TIMEOUT_MILLIS = 180_000L
         const val TIMED_INTERACTION_TIMEOUT_MILLIS = 10_000
         const val NO_SUBSCRIPTION_ID = -1L
-        const val ON_OFF_ATTRIBUTE_ID = 0L
         const val ON_OFF_MIN_INTERVAL_SECONDS = 1
         const val ON_OFF_MAX_INTERVAL_SECONDS = 60
     }

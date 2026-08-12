@@ -100,11 +100,6 @@ class AppViewModel(private val sdk: MatterAppSdk) : ViewModel() {
 
     fun showError(message: String) = update { copy(errorMessage = message) }
 
-    override fun onCleared() {
-        sdk.close()
-        super.onCleared()
-    }
-
     private inline fun update(transform: AppUiState.() -> AppUiState) {
         mutableState.value = mutableState.value.transform()
     }
