@@ -197,12 +197,19 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     }
 
     override suspend fun setOnOff(deviceId: String, value: Boolean) {
+        setOnOff(deviceId, requireOnOffCapability(deviceId), value)
+    }
+
+    override suspend fun setOnOff(deviceId: String, capability: OnOffCapability, value: Boolean) {
+        requireCapability(deviceId, capability)
+        check(if (value) capability.supportsOn else capability.supportsOff) {
+            "Device does not accept the requested On/Off command"
+        }
         val nodeId = requireNodeId(deviceId)
-        val endpointId = requireOnOffEndpoint(deviceId)
-        invokeOnOff(nodeId, endpointId) { cluster, callback ->
+        invokeOnOff(nodeId, capability.endpointId) { cluster, callback ->
             if (value) cluster.on(callback) else cluster.off(callback)
         }
-        val reportedValue = readOnOff(deviceId)
+        val reportedValue = readOnOff(deviceId, capability)
         check(reportedValue == value) { "Device reported an unexpected On/Off state" }
     }
 
@@ -214,10 +221,14 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     }
 
     override suspend fun readOnOff(deviceId: String): Boolean {
+        return readOnOff(deviceId, requireOnOffCapability(deviceId))
+    }
+
+    override suspend fun readOnOff(deviceId: String, capability: OnOffCapability): Boolean {
+        requireCapability(deviceId, capability)
         val nodeId = requireNodeId(deviceId)
-        val endpointId = requireOnOffEndpoint(deviceId)
         return try {
-            val value = withOnOffCluster(nodeId, endpointId) { cluster ->
+            val value = withOnOffCluster(nodeId, capability.endpointId) { cluster ->
                 awaitCallback<Boolean> { continuation ->
                     cluster.readOnOffAttribute(
                         object : ChipClusters.BooleanAttributeCallback {
@@ -232,7 +243,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
                     )
                 }
             }
-            Log.i(TAG, "Read node $nodeId endpoint $endpointId OnOff=$value")
+            Log.i(TAG, "Read node $nodeId endpoint ${capability.endpointId} OnOff=$value")
             updateDevice(deviceId) {
                 copy(isOn = value, availability = DeviceAvailability.ONLINE)
             }

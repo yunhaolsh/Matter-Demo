@@ -14,8 +14,10 @@ interface MatterAppSdk : Closeable {
     suspend fun discoverCapabilities(deviceId: String): MatterNodeCapabilities
     suspend fun refresh(deviceId: String): MatterDevice
     suspend fun setOnOff(deviceId: String, value: Boolean)
+    suspend fun setOnOff(deviceId: String, capability: OnOffCapability, value: Boolean)
     suspend fun toggle(deviceId: String)
     suspend fun readOnOff(deviceId: String): Boolean
+    suspend fun readOnOff(deviceId: String, capability: OnOffCapability): Boolean
     fun observeOnOff(deviceId: String): Flow<OnOffState>
     suspend fun setLevel(deviceId: String, capability: LevelCapability, level: Int)
     suspend fun readLevel(deviceId: String, capability: LevelCapability): Int?

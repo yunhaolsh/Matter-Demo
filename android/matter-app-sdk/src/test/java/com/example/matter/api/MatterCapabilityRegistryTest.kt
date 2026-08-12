@@ -19,6 +19,34 @@ class MatterCapabilityRegistryTest {
     }
 
     @Test
+    fun keepsSafeStandardControlsAvailableWhenCommandMetadataIsMissing() {
+        val onOff = MatterCapabilityRegistry.map(
+            endpointId = 4,
+            cluster = cluster(MatterCapabilityRegistry.ON_OFF_CLUSTER_ID),
+        ) as OnOffCapability
+        val level = MatterCapabilityRegistry.map(
+            endpointId = 4,
+            cluster = cluster(MatterCapabilityRegistry.LEVEL_CONTROL_CLUSTER_ID),
+        ) as LevelCapability
+
+        assertTrue(onOff.supportsOff)
+        assertTrue(onOff.supportsOn)
+        assertTrue(onOff.supportsToggle)
+        assertTrue(level.supportsMoveToLevel)
+    }
+
+    @Test
+    fun doesNotInferDoorLockCommandsWhenMetadataIsMissing() {
+        val lock = MatterCapabilityRegistry.map(
+            endpointId = 6,
+            cluster = cluster(MatterCapabilityRegistry.DOOR_LOCK_CLUSTER_ID),
+        ) as DoorLockCapability
+
+        assertFalse(lock.supportsLock)
+        assertFalse(lock.supportsUnlock)
+    }
+
+    @Test
     fun mapsTemperatureMeasurementToTypedSensor() {
         val capability = MatterCapabilityRegistry.map(
             endpointId = 9,

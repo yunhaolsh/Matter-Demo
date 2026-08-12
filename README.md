@@ -24,6 +24,8 @@
 - 已实现 Hue/Saturation、色温、门锁 Timed Invoke、温控状态/设定点，以及经过能力校验的通用 Raw Read/Write/Invoke
 - 已实现 Attribute/Event 通用订阅、自动重订阅状态通知，以及按 Subscription ID 取消和连接资源释放
 - 已将 OnOff 产品状态接入常驻订阅：恢复设备和新配网设备会自动建立观察任务，设备端按键变化可实时刷新 App
+- App 已实现 Capability UI Registry 与动态设备详情页：按 Endpoint 将 OnOff、Level、Color、DoorLock、Thermostat 和传感器能力映射为控制面板
+- 动态控制按能力对象寻址，支持一个 Node 上的多个 Endpoint；未知及厂商私有 Cluster 仅作安全提示，不会被误当成灯或插座控制
 - SDK 关闭、设备删除和重新发现能力时会取消对应订阅，避免重复订阅及 Operational Device Pointer 泄漏
 - Controller Runtime 由 App 进程单例持有，Activity/ViewModel 重建不会重复初始化 connectedhomeip 原生全局状态
 - 已实现 CameraX + ML Kit 实时扫码：相机权限、后摄预览、Matter QR 校验、重复识别保护、闪光灯和页面退出资源释放均已接通
@@ -42,4 +44,4 @@ export ANDROID_HOME=/home/yunhao/Android/Sdk
 
 Debug APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
 
-下一步继续 M1：真机验证配网，然后实现设备目录持久化、Descriptor 能力发现和 OnOff 控制/订阅。
+下一步继续扩展类型化状态订阅、设备类型展示名称和厂商 Cluster 插件，并接入自有云端的家庭、成员与远程控制能力。

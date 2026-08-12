@@ -91,11 +91,18 @@ class FakeMatterAppSdk(
         }
     }
 
+    override suspend fun setOnOff(deviceId: String, capability: OnOffCapability, value: Boolean) {
+        setOnOff(deviceId, value)
+    }
+
     override suspend fun toggle(deviceId: String) {
         setOnOff(deviceId, !readOnOff(deviceId))
     }
 
     override suspend fun readOnOff(deviceId: String): Boolean = requireDevice(deviceId).isOn
+
+    override suspend fun readOnOff(deviceId: String, capability: OnOffCapability): Boolean =
+        readOnOff(deviceId)
 
     override fun observeOnOff(deviceId: String): Flow<OnOffState> = devices.map { devices ->
         devices.firstOrNull { it.id == deviceId }?.let { device ->

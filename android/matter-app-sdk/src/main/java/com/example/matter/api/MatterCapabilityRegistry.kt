@@ -7,14 +7,14 @@ internal object MatterCapabilityRegistry {
             ON_OFF_CLUSTER_ID -> OnOffCapability(
                 endpointId = endpointId,
                 cluster = cluster,
-                supportsOff = cluster.accepts(OFF_COMMAND_ID),
-                supportsOn = cluster.accepts(ON_COMMAND_ID),
-                supportsToggle = cluster.accepts(TOGGLE_COMMAND_ID),
+                supportsOff = cluster.acceptsOrMetadataUnavailable(OFF_COMMAND_ID),
+                supportsOn = cluster.acceptsOrMetadataUnavailable(ON_COMMAND_ID),
+                supportsToggle = cluster.acceptsOrMetadataUnavailable(TOGGLE_COMMAND_ID),
             )
             LEVEL_CONTROL_CLUSTER_ID -> LevelCapability(
                 endpointId = endpointId,
                 cluster = cluster,
-                supportsMoveToLevel = cluster.accepts(MOVE_TO_LEVEL_COMMAND_ID),
+                supportsMoveToLevel = cluster.acceptsOrMetadataUnavailable(MOVE_TO_LEVEL_COMMAND_ID),
             )
             COLOR_CONTROL_CLUSTER_ID -> ColorCapability(
                 endpointId = endpointId,
@@ -53,6 +53,9 @@ internal object MatterCapabilityRegistry {
 
     private fun MatterClusterCapabilities.accepts(commandId: Long): Boolean =
         commandId in acceptedCommandIds
+
+    private fun MatterClusterCapabilities.acceptsOrMetadataUnavailable(commandId: Long): Boolean =
+        acceptedCommandIds.isEmpty() || accepts(commandId)
 
     private fun MatterClusterCapabilities.hasAttribute(attributeId: Long): Boolean =
         attributeId in attributeIds

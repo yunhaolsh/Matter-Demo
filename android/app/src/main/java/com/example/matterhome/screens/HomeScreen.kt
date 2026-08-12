@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ElectricalServices
+import androidx.compose.material.icons.filled.DevicesOther
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.Card
@@ -145,7 +146,11 @@ private fun DeviceRow(device: MatterDevice, onOpen: () -> Unit, onPower: () -> U
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = if (device.type == DeviceType.LIGHT) Icons.Default.Lightbulb else Icons.Default.ElectricalServices,
+                imageVector = when (device.type) {
+                    DeviceType.LIGHT -> Icons.Default.Lightbulb
+                    DeviceType.PLUG -> Icons.Default.ElectricalServices
+                    DeviceType.UNKNOWN -> Icons.Default.DevicesOther
+                },
                 contentDescription = null,
                 tint = if (device.isOn && online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(30.dp),
