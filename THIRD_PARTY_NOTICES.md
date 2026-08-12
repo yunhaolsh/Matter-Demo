@@ -22,3 +22,21 @@ The Demo consumes generated Android artifacts from the adjacent `connectedhomeip
 - Generated artifacts: Controller, Platform, Onboarding Payload, Interaction Model, Cluster, JSON/TLV JARs and arm64 JNI libraries
 
 Generated binaries are local build inputs and are excluded from this repository.
+
+## AndroidX CameraX
+
+The Android App uses CameraX for lifecycle-aware camera preview and image analysis:
+
+- Project: AndroidX CameraX
+- Source: https://android.googlesource.com/platform/frameworks/support/+/androidx-main/camera/
+- Version: `1.3.4`
+- License: Apache License 2.0
+
+## Google ML Kit Barcode Scanning
+
+The Android App uses the on-device ML Kit barcode scanner for Matter QR recognition:
+
+- Product: Google ML Kit Barcode Scanning for Android
+- Source: https://developers.google.com/ml-kit/vision/barcode-scanning/android
+- Artifact: `com.google.mlkit:barcode-scanning:17.2.0`
+- Terms: Google APIs Terms of Service and ML Kit SDK terms distributed with the artifact
