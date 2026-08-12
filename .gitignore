@@ -12,6 +12,11 @@ local.properties
 *.aab
 *.hprof
 
+# Matter Android artifacts generated from the sibling connectedhomeip checkout.
+android/matter-app-sdk/libs/
+android/matter-app-sdk/src/main/jniLibs/
+android/matter-app-sdk/matter-sdk.properties
+
 # Signing material and local configuration.
 *.jks
 *.keystore

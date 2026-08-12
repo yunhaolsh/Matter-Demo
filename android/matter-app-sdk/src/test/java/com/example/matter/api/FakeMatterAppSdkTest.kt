@@ -11,7 +11,7 @@ class FakeMatterAppSdkTest {
     @Test
     fun commissioningEmitsOrderedStagesAndAddsDevice() = runTest {
         val sdk = FakeMatterAppSdk(stageDelayMillis = 0)
-        val setupCode = sdk.parseSetupCode("MT:DEMO123")
+        val setupCode = sdk.parseSetupCode("MT:W0GU2OTB00KA0648G00")
 
         val events = sdk.commissionWifi(setupCode, WifiCredentials("Demo Wi-Fi", "password")).toList()
 

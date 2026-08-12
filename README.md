@@ -4,14 +4,17 @@
 
 详细路线见 [plan.md](plan.md)。当前目录旁边的 `connectedhomeip` 是 Matter SDK 的权威源码；`references/` 仅保存本地参考项目说明，完整的 ESP RainMaker checkout 已被 Git 忽略，不会随本仓库提交。
 
-## 当前进度：M0 产品壳
+## 当前进度：M1 Matter SDK 基础接入
 
 `android/` 已包含可独立构建的 Kotlin + Jetpack Compose 双模块工程：
 
 - `app`：家庭、房间、设备控制、扫码/手动码、Wi-Fi 配置、配网进度、详情、自动化与设置页面
 - `matter-app-sdk`：不依赖 UI 的公开接口、数据模型和 `FakeMatterAppSdk`
 - Fake SDK 已跑通配网事件流、OnOff 控制和设备移除
-- M0 暂未接入真实相机扫码、connectedhomeip Java/JNI、设备持久化或云端
+- 已从锁定的 connectedhomeip 提交封装 Android Controller JAR/JNI 产物
+- 已使用官方 `OnboardingPayloadParser` 校验二维码和手动配对码
+- 已建立 SDK 内部的长生命周期 Controller Runtime
+- 尚未完成 BLE GATT、Wi-Fi Commissioning、设备持久化或云端
 
 ## 构建与测试
 
@@ -25,4 +28,4 @@ export ANDROID_HOME=/home/yunhao/Android/Sdk
 
 Debug APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
 
-下一步进入 M1：把 connectedhomeip 的 Android Controller 能力封装到 `matter-app-sdk` 内部，接入真实二维码解析、BLE 配网、Fabric 持久化和 OnOff 订阅。
+下一步继续 M1：实现 Android BLE 扫描/GATT、Wi-Fi Commissioning 状态机和设备目录持久化。

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 
 class FakeMatterAppSdk(
     private val stageDelayMillis: Long = 500,
+    private val setupCodeParser: SetupCodeParser = MatterSetupCodeParser(),
 ) : MatterAppSdk {
     private val livingRoom = MatterRoom("living", "Living room")
     private val bedroom = MatterRoom("bedroom", "Bedroom")
@@ -46,17 +47,7 @@ class FakeMatterAppSdk(
     )
     override val devices: StateFlow<List<MatterDevice>> = mutableDevices.asStateFlow()
 
-    override fun parseSetupCode(rawCode: String): SetupCode {
-        val normalized = rawCode.trim()
-        require(normalized.isNotEmpty()) { "Enter a setup code" }
-        return when {
-            normalized.startsWith("MT:", ignoreCase = true) && normalized.length >= 8 ->
-                SetupCode(normalized, SetupCode.Format.QR)
-            normalized.filter(Char::isDigit).length in 11..21 ->
-                SetupCode(normalized.filter(Char::isDigit), SetupCode.Format.MANUAL)
-            else -> throw IllegalArgumentException("Use a valid Matter QR or manual setup code")
-        }
-    }
+    override fun parseSetupCode(rawCode: String): SetupCode = setupCodeParser.parse(rawCode)
 
     override fun commissionWifi(
         setupCode: SetupCode,

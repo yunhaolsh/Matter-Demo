@@ -13,4 +13,12 @@ The reference checkout is not distributed by this repository. This notice must b
 
 ## Matter SDK
 
-The Demo is designed to consume Matter SDK artifacts built from the adjacent `connectedhomeip` repository. Matter is licensed under the Apache License 2.0. The exact SDK commit and packaged artifacts will be recorded when the Android build integration is implemented.
+The Demo consumes generated Android artifacts from the adjacent `connectedhomeip` repository:
+
+- Project: Matter SDK (`connectedhomeip`)
+- Source: https://github.com/project-chip/connectedhomeip
+- Pinned commit: `b961bbb56e7b9496453e39ed3f6420fe7e644865`
+- License: Apache License 2.0
+- Generated artifacts: Controller, Platform, Onboarding Payload, Interaction Model, Cluster, JSON/TLV JARs and arm64 JNI libraries
+
+Generated binaries are local build inputs and are excluded from this repository.

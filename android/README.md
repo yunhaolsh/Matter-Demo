@@ -1,13 +1,27 @@
-# Matter Home Android M0
+# Matter Home Android
 
-An independent Android product shell for a Matter controller. M0 uses the UI-free
-`matter-app-sdk` module's in-memory implementation; it does not yet bundle the
-connectedhomeip Java/JNI artifacts or connect to a cloud service.
+An independent Android product shell for a Matter controller. The App still uses
+the UI-free SDK's in-memory device implementation while M1 is under development.
+The SDK now bundles locally generated connectedhomeip Java/JNI artifacts, validates
+setup codes with the official parser, and owns an internal Controller runtime.
+
+## Prepare Matter SDK artifacts
+
+Build `android-arm64-chip-tool` in the sibling `connectedhomeip` checkout, then
+copy the pinned Controller artifacts into the SDK module:
+
+```bash
+../scripts/prepare-matter-android.sh
+```
+
+The copied JAR/JNI files and generated version manifest are local build inputs.
+They are ignored by Git and must not be committed.
 
 ## Prerequisites
 
 - Android SDK 34 at `/home/yunhao/Android/Sdk` (or set `ANDROID_HOME`)
 - JDK 17; Android Studio's JBR is supported
+- Kotlin 2.1.10, matching the pinned Matter Android artifacts
 
 ## Build and test
 

@@ -26,6 +26,7 @@ data class MatterDevice(
     val isOn: Boolean,
 )
 
+@ConsistentCopyVisibility
 data class SetupCode internal constructor(
     val value: String,
     val format: Format,
