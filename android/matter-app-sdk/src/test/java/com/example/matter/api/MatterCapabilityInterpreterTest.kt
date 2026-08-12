@@ -13,6 +13,7 @@ class MatterCapabilityInterpreterTest {
         )
 
         assertEquals(3, MatterCapabilityInterpreter.onOffEndpoint(capabilities))
+        assertEquals(3, MatterCapabilityInterpreter.onOffCapability(capabilities)?.endpointId)
         assertEquals(DeviceType.PLUG, MatterCapabilityInterpreter.deviceType(capabilities))
     }
 

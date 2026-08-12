@@ -23,8 +23,10 @@
 - 已实现基于能力对象寻址的亮度读取/控制和温度读取，支持同一 Node 上的多 Endpoint
 - 已实现 Hue/Saturation、色温、门锁 Timed Invoke、温控状态/设定点，以及经过能力校验的通用 Raw Read/Write/Invoke
 - 已实现 Attribute/Event 通用订阅、自动重订阅状态通知，以及按 Subscription ID 取消和连接资源释放
+- 已将 OnOff 产品状态接入常驻订阅：恢复设备和新配网设备会自动建立观察任务，设备端按键变化可实时刷新 App
+- SDK 关闭、设备删除和重新发现能力时会取消对应订阅，避免重复订阅及 Operational Device Pointer 泄漏
 - BLE 配网链路尚待 arm64 Android 真机和未配网 Matter over Wi-Fi 设备验证
-- 已完成设备 Node ID 持久化、Raw/类型化能力快照、常用设备交互和通用 Interaction Model 接口；尚未完成相机扫码、真机订阅验证或云端
+- 已完成设备 Node ID 持久化、Raw/类型化能力快照、常用设备交互、通用 Interaction Model 接口和 OnOff 实时状态；尚未完成相机扫码、其他类型化状态订阅、真机订阅验证或云端
 
 ## 构建与测试
 

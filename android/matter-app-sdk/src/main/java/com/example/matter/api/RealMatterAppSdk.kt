@@ -28,15 +28,19 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -58,6 +62,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     private val deviceUnpairer = MatterDeviceUnpairer()
     private val closed = AtomicBoolean(false)
     private val activeSubscriptionClosers = ConcurrentHashMap.newKeySet<() -> Unit>()
+    private val deviceStateObservers = ConcurrentHashMap<String, Job>()
     private val sdkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val defaultRoom = MatterRoom("unassigned", "Unassigned")
@@ -74,7 +79,6 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
             sdkScope.launch {
                 runCatching {
                     discoverCapabilities(device.id)
-                    if (onOffEndpoint(device.id) != null) readOnOff(device.id)
                 }
                     .onFailure {
                         Log.w(TAG, "Unable to refresh restored Matter node ${device.id}", it)
@@ -179,6 +183,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
             )
         }
         Log.i(TAG, "Discovered ${capabilities.endpoints.size} endpoints for Matter node $nodeId")
+        startDeviceStateObservation(deviceId)
         return capabilities
     }
 
@@ -236,12 +241,38 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     }
 
     override fun observeOnOff(deviceId: String): Flow<OnOffState> = flow {
-        requireDevice(deviceId)
+        val capability = requireOnOffCapability(deviceId)
         emit(OnOffState.Loading)
-        emit(
-            runCatching { OnOffState.Available(readOnOff(deviceId)) }
-                .getOrDefault(OnOffState.Unavailable),
-        )
+        emit(OnOffState.Available(readOnOff(deviceId)))
+        subscribeRaw(
+            deviceId = deviceId,
+            capability = capability,
+            attributeIds = setOf(ON_OFF_ATTRIBUTE_ID),
+            minIntervalSeconds = ON_OFF_MIN_INTERVAL_SECONDS,
+            maxIntervalSeconds = ON_OFF_MAX_INTERVAL_SECONDS,
+        ).collect { event ->
+            when (event) {
+                is MatterSubscriptionEvent.AttributeChanged -> {
+                    val value = MatterAttributeValueDecoder.boolean(event.value)
+                    updateDevice(deviceId) {
+                        copy(isOn = value, availability = DeviceAvailability.ONLINE)
+                    }
+                    emit(OnOffState.Available(value))
+                }
+                is MatterSubscriptionEvent.Resubscribing -> {
+                    updateDevice(deviceId) { copy(availability = DeviceAvailability.CONNECTING) }
+                    emit(OnOffState.Loading)
+                }
+                is MatterSubscriptionEvent.Established,
+                is MatterSubscriptionEvent.EventReceived,
+                -> Unit
+            }
+        }
+    }.catch { error ->
+        if (error is CancellationException) throw error
+        updateDeviceIfPresent(deviceId) { copy(availability = DeviceAvailability.OFFLINE) }
+        Log.w(TAG, "Matter OnOff observation stopped for node $deviceId", error)
+        emit(OnOffState.Unavailable)
     }
 
     override suspend fun setLevel(deviceId: String, capability: LevelCapability, level: Int) {
@@ -667,8 +698,14 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
 
     override suspend fun removeDevice(deviceId: String) {
         val nodeId = requireNodeId(deviceId)
-        deviceUnpairer.unpair(nodeId) { callback ->
-            runtime.controller.unpairDeviceCallback(nodeId, callback)
+        deviceStateObservers.remove(deviceId)?.cancelAndJoin()
+        try {
+            deviceUnpairer.unpair(nodeId) { callback ->
+                runtime.controller.unpairDeviceCallback(nodeId, callback)
+            }
+        } catch (error: Throwable) {
+            startDeviceStateObservation(deviceId)
+            throw error
         }
         nodeIdStore.removeCommissioned(nodeId)
         mutableDevices.value = mutableDevices.value.filterNot { it.id == deviceId }
@@ -678,6 +715,7 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     override fun close() {
         if (closed.compareAndSet(false, true)) {
             sdkScope.cancel()
+            deviceStateObservers.clear()
             activeSubscriptionClosers.toList().forEach { closeSubscription -> closeSubscription() }
             runtime.close()
         }
@@ -882,8 +920,24 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         requireDevice(deviceId).capabilities?.let(MatterCapabilityInterpreter::onOffEndpoint)
 
     private fun requireOnOffEndpoint(deviceId: String): Int =
-        onOffEndpoint(deviceId)
+        requireOnOffCapability(deviceId).endpointId
+
+    private fun requireOnOffCapability(deviceId: String): OnOffCapability {
+        val capabilities = requireDevice(deviceId).capabilities
+            ?: error("Device capabilities have not been discovered")
+        return MatterCapabilityInterpreter.onOffCapability(capabilities)
             ?: error("Device does not expose a discovered On/Off capability")
+    }
+
+    private fun startDeviceStateObservation(deviceId: String) {
+        if (closed.get() || onOffEndpoint(deviceId) == null) return
+        lateinit var observer: Job
+        observer = sdkScope.launch {
+            observeOnOff(deviceId).collect()
+        }
+        deviceStateObservers.put(deviceId, observer)?.cancel()
+        observer.invokeOnCompletion { deviceStateObservers.remove(deviceId, observer) }
+    }
 
     private fun requireCapability(deviceId: String, capability: MatterCapability) {
         val discovered = requireDevice(deviceId).capabilities
@@ -899,6 +953,16 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
     }
 
     private inline fun updateDevice(
+        deviceId: String,
+        transform: MatterDevice.() -> MatterDevice,
+    ) {
+        mutableDevices.value =
+            mutableDevices.value.map { device ->
+                if (device.id == deviceId) device.transform() else device
+            }
+    }
+
+    private inline fun updateDeviceIfPresent(
         deviceId: String,
         transform: MatterDevice.() -> MatterDevice,
     ) {
@@ -954,5 +1018,8 @@ internal class RealMatterAppSdk(context: Context) : MatterAppSdk {
         const val COMMISSIONING_TIMEOUT_MILLIS = 180_000L
         const val TIMED_INTERACTION_TIMEOUT_MILLIS = 10_000
         const val NO_SUBSCRIPTION_ID = -1L
+        const val ON_OFF_ATTRIBUTE_ID = 0L
+        const val ON_OFF_MIN_INTERVAL_SECONDS = 1
+        const val ON_OFF_MAX_INTERVAL_SECONDS = 60
     }
 }
